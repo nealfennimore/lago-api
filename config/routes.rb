@@ -88,6 +88,7 @@ Rails.application.routes.draw do
     post 'stripe/:organization_id', to: 'webhooks#stripe', on: :collection, as: :stripe
     post 'gocardless/:organization_id', to: 'webhooks#gocardless', on: :collection, as: :gocardless
     post 'adyen/:organization_id', to: 'webhooks#adyen', on: :collection, as: :adyen
+    post 'nowpayments/:organization_id', to: 'webhooks#nowpayments', on: :collection, as: :nowpayments
   end
 
   namespace :admin do

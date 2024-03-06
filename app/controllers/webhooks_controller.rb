@@ -58,4 +58,21 @@ class WebhooksController < ApplicationController
   def adyen_params
     params['notificationItems'].first&.dig('NotificationRequestItem')&.permit!
   end
+
+  def nowpayments
+    result = PaymentProviders::NowpaymentsService.new.handle_incoming_webhook(
+      organization_id: params[:organization_id],
+      code: params[:code].presence,
+      body: request.body.read,
+      signature: request.headers['x-nowpayments-sig'],
+    )
+
+    unless result.success?
+      return head(:bad_request) if result.error.code == 'webhook_error'
+
+      result.raise_if_error!
+    end
+
+    render(json: '[accepted]')
+  end
 end

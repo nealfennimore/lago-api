@@ -223,4 +223,76 @@ RSpec.describe WebhooksController, type: :request do
       end
     end
   end
+
+  describe 'POST /nowpayments' do
+    let(:organization) { create(:organization) }
+
+    let(:nowpayments_provider) do
+      create(:nowpayments_provider, organization:)
+    end
+
+    let(:now_payments_service) { instance_double(PaymentProviders::NowpaymentsService) }
+
+    let(:body) do
+      path = Rails.root.join('spec/fixtures/nowpayments/webhook_payment_response.json')
+      JSON.parse(File.read(path))
+    end
+
+    let(:result) do
+      result = BaseService::Result.new
+      result.body = body
+      result
+    end
+
+    before do
+      allow(PaymentProviders::NowpaymentsService).to receive(:new)
+        .and_return(now_payments_service)
+      allow(now_payments_service).to receive(:handle_incoming_webhook)
+        .with(
+          organization_id: organization.id,
+          code: nil,
+          body: body.to_json,
+          signature: 'c2accfcf8e91ed34305aa9bbfb2c7e2642ed90f1f16296633f5b232d482f30fe2e261254c71a5660734b6b26b4a7ce768596f634fea902eacdd8f69013648993',
+        )
+        .and_return(result)
+    end
+
+    it 'handle nowpayments webhooks' do
+      post(
+        "/webhooks/nowpayments/#{nowpayments_provider.organization_id}",
+        params: body.to_json,
+        headers: {
+          'Content-Type' => 'application/json',
+          'x-nowpayments-sig' => 'c2accfcf8e91ed34305aa9bbfb2c7e2642ed90f1f16296633f5b232d482f30fe2e261254c71a5660734b6b26b4a7ce768596f634fea902eacdd8f69013648993',
+        },
+      )
+
+      expect(response).to have_http_status(:success)
+
+      expect(PaymentProviders::NowpaymentsService).to have_received(:new)
+      expect(now_payments_service).to have_received(:handle_incoming_webhook)
+    end
+
+    context 'when failing to handle nowpayments event' do
+      let(:result) do
+        BaseService::Result.new.service_failure!(code: 'webhook_error', message: 'Invalid payload')
+      end
+
+      it 'returns a bad request' do
+        post(
+          "/webhooks/nowpayments/#{nowpayments_provider.organization_id}",
+          params: body.to_json,
+          headers: {
+            'Content-Type' => 'application/json',
+            'x-nowpayments-sig' => 'c2accfcf8e91ed34305aa9bbfb2c7e2642ed90f1f16296633f5b232d482f30fe2e261254c71a5660734b6b26b4a7ce768596f634fea902eacdd8f69013648993',
+          },
+        )
+
+        expect(response).to have_http_status(:bad_request)
+
+        expect(PaymentProviders::NowpaymentsService).to have_received(:new)
+        expect(now_payments_service).to have_received(:handle_incoming_webhook)
+      end
+    end
+  end
 end

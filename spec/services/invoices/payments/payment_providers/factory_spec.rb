@@ -31,5 +31,13 @@ RSpec.describe Invoices::Payments::PaymentProviders::Factory, type: :service do
         expect(factory_service.class.to_s).to eq('Invoices::Payments::GocardlessService')
       end
     end
+
+    context 'when nowpayments' do
+      let(:payment_provider) { 'nowpayments' }
+
+      it 'returns correct class' do
+        expect(factory_service.class.to_s).to eq('Invoices::Payments::NowpaymentsService')
+      end
+    end
   end
 end

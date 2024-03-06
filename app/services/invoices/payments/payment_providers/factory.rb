@@ -16,6 +16,8 @@ module Invoices
             Invoices::Payments::AdyenService
           when 'gocardless'
             Invoices::Payments::GocardlessService
+          when 'nowpayments'
+            Invoices::Payments::NowpaymentsService
           else
             raise(NotImplementedError)
           end

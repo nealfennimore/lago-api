@@ -61,4 +61,25 @@ FactoryBot.define do
       success_redirect_url { Faker::Internet.url }
     end
   end
+
+  factory :nowpayments_provider, class: 'PaymentProviders::NowpaymentsProvider' do
+    organization
+    type { 'PaymentProviders::NowpaymentsProvider' }
+    code { "nowpayments_account_#{SecureRandom.uuid}" }
+    name { 'Nowpayments Account 1' }
+
+    secrets do
+      { api_key:, hmac_key: }.to_json
+    end
+
+    settings do
+      { success_redirect_url: }
+    end
+
+    transient do
+      api_key { SecureRandom.uuid }
+      hmac_key { SecureRandom.uuid }
+      success_redirect_url { Faker::Internet.url }
+    end
+  end
 end

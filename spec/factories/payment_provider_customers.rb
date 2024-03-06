@@ -19,4 +19,10 @@ FactoryBot.define do
 
     provider_customer_id { SecureRandom.uuid }
   end
+
+  factory :nowpayments_customer, class: 'PaymentProviderCustomers::NowpaymentsCustomer' do
+    customer
+
+    provider_customer_id { SecureRandom.uuid }
+  end
 end
