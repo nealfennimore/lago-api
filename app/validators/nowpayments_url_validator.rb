@@ -1,6 +1,6 @@
 # frozen_string_literal: true
 
-class NowPaymentsUrlValidator < ActiveModel::EachValidator
+class NowpaymentsUrlValidator < ActiveModel::EachValidator
   def validate_each(record, attribute, value)
     record.errors.add(attribute, :url_invalid) unless url_valid?(value)
   end

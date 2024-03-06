@@ -2,8 +2,8 @@
 
 module Types
   module PaymentProviders
-    class NowPaymentsInput < BaseInputObject
-      description 'NowPayments input arguments'
+    class NowpaymentsInput < BaseInputObject
+      description 'Nowpayments input arguments'
 
       argument :api_key, String, required: true
       argument :code, String, required: true

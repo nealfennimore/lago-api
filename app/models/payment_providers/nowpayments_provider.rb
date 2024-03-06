@@ -1,10 +1,10 @@
 # frozen_string_literal: true
 
 module PaymentProviders
-  class NowPaymentsProvider < BaseProvider
+  class NowpaymentsProvider < BaseProvider
     SUCCESS_REDIRECT_URL = 'https://www.nowpayments.com/'
 
-    validates :api_key, :merchant_account, presence: true
+    validates :api_key, presence: true
     validates :success_redirect_url, nowpayments_url: true, allow_nil: true, length: { maximum: 1024 }
 
     def environment
@@ -29,22 +29,6 @@ module PaymentProviders
 
     def hmac_key
       get_from_secrets('hmac_key')
-    end
-
-    def live_prefix=(value)
-      push_to_settings(key: 'live_prefix', value:)
-    end
-
-    def live_prefix
-      get_from_settings('live_prefix')
-    end
-
-    def merchant_account=(value)
-      push_to_settings(key: 'merchant_account', value:)
-    end
-
-    def merchant_account
-      get_from_settings('merchant_account')
     end
   end
 end

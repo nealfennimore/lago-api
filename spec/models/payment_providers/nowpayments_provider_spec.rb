@@ -2,7 +2,7 @@
 
 require 'rails_helper'
 
-RSpec.describe PaymentProviders::NowPaymentsProvider, type: :model do
+RSpec.describe PaymentProviders::NowpaymentsProvider, type: :model do
   subject(:provider) { build(:nowpayments_provider) }
 
   it { is_expected.to validate_length_of(:success_redirect_url).is_at_most(1024).allow_nil }

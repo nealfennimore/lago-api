@@ -1,0 +1,27 @@
+{
+    "actually_paid": 0,
+    "actually_paid_at_fiat": 0,
+    "fee": {
+        "currency": "usdterc20",
+        "depositFee": 0,
+        "serviceFee": 0,
+        "withdrawalFee": 0
+    },
+    "invoice_id": 4934414130,
+    "order_description": "Computer",
+    "order_id": "Eli.Bashirian96-Gloves",
+    "outcome_amount": 691.616162,
+    "outcome_currency": "usdterc20",
+    "parent_payment_id": null,
+    "pay_address": "84bwSkRp7iacbHoK47gZMWMWhZ1QvwNqLJo2aEmz44TB43CcYk6GKqfBHjm5UX1RfgVgHwC6sCEijXxCtLBjiquR766TTmg",
+    "pay_amount": 5.06339976,
+    "pay_currency": "xmr",
+    "payin_extra_id": null,
+    "payment_extra_ids": null,
+    "payment_id": 5007355649,
+    "payment_status": "finished",
+    "price_amount": 689.73,
+    "price_currency": "usd",
+    "purchase_id": "5938224285",
+    "updated_at": 1709130857551
+}

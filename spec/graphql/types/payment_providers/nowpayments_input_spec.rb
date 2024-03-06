@@ -2,7 +2,7 @@
 
 require 'rails_helper'
 
-RSpec.describe Types::PaymentProviders::NowPaymentsInput do
+RSpec.describe Types::PaymentProviders::NowpaymentsInput do
   subject { described_class }
 
   it { is_expected.to accept_argument(:api_key).of_type('String!') }

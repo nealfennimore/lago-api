@@ -2,13 +2,13 @@
 
 module Invoices
   module Payments
-    class NowPaymentsService < BaseService
-      include Lago::NowPayments::ErrorHandlable
+    class NowpaymentsService < BaseService
+      include Lago::Nowpayments::ErrorHandlable
       include Customers::PaymentProviderFinder
 
-      PENDING_STATUSES = %w[AuthorisedPending Received].freeze
-      SUCCESS_STATUSES = %w[Authorised SentForSettle SettleScheduled Settled Refunded].freeze
-      FAILED_STATUSES = %w[Cancelled CaptureFailed Error Expired Refused].freeze
+      PENDING_STATUSES = %w[waiting confirming confirmed sending partially_paid].freeze
+      SUCCESS_STATUSES = %w[refunded finished].freeze
+      FAILED_STATUSES = %w[expired failed].freeze
 
       def initialize(invoice = nil)
         @invoice = invoice
@@ -76,7 +76,7 @@ module Invoices
       def generate_payment_url
         return result unless should_process_payment?
 
-        res = client.checkout.payment_links_api.payment_links(Lago::NowPayments::Params.new(payment_url_params).to_h)
+        res = client.checkout.payment_links_api.payment_links(Lago::Nowpayments::Params.new(payment_url_params).to_h)
         nowpayments_success, nowpayments_error = handle_nowpayments_response(res)
         result.service_failure!(code: nowpayments_error.code, message: nowpayments_error.msg) unless nowpayments_success
 
@@ -85,7 +85,7 @@ module Invoices
         result.payment_url = res.response['url']
 
         result
-      rescue NowPayments::NowPaymentsError => e
+      rescue Nowpayments::NowpaymentsError => e
         deliver_error_webhook(e)
 
         result.service_failure!(code: e.code, message: e.msg)
@@ -120,7 +120,7 @@ module Invoices
       end
 
       def client
-        @client ||= NowPayments::Client.new(
+        @client ||= Nowpayments::Client.new(
           api_key: nowpayments_payment_provider.api_key,
           env: nowpayments_payment_provider.environment,
           live_url_prefix: nowpayments_payment_provider.live_prefix,
@@ -128,7 +128,7 @@ module Invoices
       end
 
       def success_redirect_url
-        nowpayments_payment_provider.success_redirect_url.presence || ::PaymentProviders::NowPaymentsProvider::SUCCESS_REDIRECT_URL
+        nowpayments_payment_provider.success_redirect_url.presence || ::PaymentProviders::NowpaymentsProvider::SUCCESS_REDIRECT_URL
       end
 
       def nowpayments_payment_provider
@@ -137,7 +137,7 @@ module Invoices
 
       def update_payment_method_id
         result = client.checkout.payments_api.payment_methods(
-          Lago::NowPayments::Params.new(payment_method_params).to_h,
+          Lago::Nowpayments::Params.new(payment_method_params).to_h,
         ).response
 
         payment_method_id = result['storedPaymentMethods']&.first&.dig('id')
@@ -147,12 +147,12 @@ module Invoices
       def create_nowpayments_payment
         update_payment_method_id
 
-        client.checkout.payments_api.payments(Lago::NowPayments::Params.new(payment_params).to_h)
-      rescue NowPayments::ValidationError => e
+        client.checkout.payments_api.payments(Lago::Nowpayments::Params.new(payment_params).to_h)
+      rescue Nowpayments::ValidationError => e
         deliver_error_webhook(e)
         update_invoice_payment_status(payment_status: :failed, deliver_webhook: false)
         nil
-      rescue NowPayments::NowPaymentsError => e
+      rescue Nowpayments::NowpaymentsError => e
         deliver_error_webhook(e)
         update_invoice_payment_status(payment_status: :failed, deliver_webhook: false)
         raise e

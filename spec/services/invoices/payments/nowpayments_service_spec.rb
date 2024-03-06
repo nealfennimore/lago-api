@@ -2,18 +2,18 @@
 
 require 'rails_helper'
 
-RSpec.describe Invoices::Payments::NowPaymentsService, type: :service do
+RSpec.describe Invoices::Payments::NowpaymentsService, type: :service do
   subject(:nowpayments_service) { described_class.new(invoice) }
 
   let(:customer) { create(:customer, payment_provider_code: code) }
   let(:organization) { customer.organization }
   let(:nowpayments_payment_provider) { create(:nowpayments_provider, organization:, code:) }
   let(:nowpayments_customer) { create(:nowpayments_customer, customer:) }
-  let(:nowpayments_client) { instance_double(NowPayments::Client) }
-  let(:payments_api) { NowPayments::PaymentsApi.new(nowpayments_client, 70) }
-  let(:payment_links_api) { NowPayments::PaymentLinksApi.new(nowpayments_client, 70) }
+  let(:nowpayments_client) { instance_double(Nowpayments::Client) }
+  let(:payments_api) { Nowpayments::PaymentsApi.new(nowpayments_client, 70) }
+  let(:payment_links_api) { Nowpayments::PaymentLinksApi.new(nowpayments_client, 70) }
   let(:payment_links_response) { generate(:nowpayments_payment_links_response) }
-  let(:checkout) { NowPayments::Checkout.new(nowpayments_client, 70) }
+  let(:checkout) { Nowpayments::Checkout.new(nowpayments_client, 70) }
   let(:payments_response) { generate(:nowpayments_payments_response) }
   let(:payment_methods_response) { generate(:nowpayments_payment_methods_response) }
   let(:code) { 'nowpayments_1' }
@@ -34,7 +34,7 @@ RSpec.describe Invoices::Payments::NowPaymentsService, type: :service do
       nowpayments_payment_provider
       nowpayments_customer
 
-      allow(NowPayments::Client).to receive(:new)
+      allow(Nowpayments::Client).to receive(:new)
         .and_return(nowpayments_client)
       allow(nowpayments_client).to receive(:checkout)
         .and_return(checkout)
@@ -172,7 +172,7 @@ RSpec.describe Invoices::Payments::NowPaymentsService, type: :service do
       context 'when changing payment method fails with invalid card' do
         before do
           allow(payments_api).to receive(:payment_methods)
-            .and_raise(NowPayments::ValidationError.new('Invalid card number', nil))
+            .and_raise(Nowpayments::ValidationError.new('Invalid card number', nil))
         end
 
         it 'delivers an error webhook' do
@@ -192,7 +192,7 @@ RSpec.describe Invoices::Payments::NowPaymentsService, type: :service do
       context 'when payment fails with invalid card' do
         before do
           allow(payments_api).to receive(:payments)
-            .and_raise(NowPayments::ValidationError.new('Invalid card number', nil))
+            .and_raise(Nowpayments::ValidationError.new('Invalid card number', nil))
         end
 
         it 'delivers an error webhook' do
@@ -225,12 +225,12 @@ RSpec.describe Invoices::Payments::NowPaymentsService, type: :service do
         subscription
 
         allow(payments_api).to receive(:payments)
-          .and_raise(NowPayments::NowPaymentsError.new(nil, nil, 'error', 'code'))
+          .and_raise(Nowpayments::NowpaymentsError.new(nil, nil, 'error', 'code'))
       end
 
       it 'delivers an error webhook' do
         expect { nowpayments_service.__send__(:create_nowpayments_payment) }
-          .to raise_error(NowPayments::NowPaymentsError)
+          .to raise_error(Nowpayments::NowpaymentsError)
 
         expect(SendWebhookJob).to have_been_enqueued
           .with(
@@ -373,7 +373,7 @@ RSpec.describe Invoices::Payments::NowPaymentsService, type: :service do
       nowpayments_payment_provider
       nowpayments_customer
 
-      allow(NowPayments::Client).to receive(:new)
+      allow(Nowpayments::Client).to receive(:new)
         .and_return(nowpayments_client)
       allow(nowpayments_client).to receive(:checkout)
         .and_return(checkout)

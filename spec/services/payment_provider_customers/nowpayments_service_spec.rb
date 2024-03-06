@@ -2,14 +2,14 @@
 
 require 'rails_helper'
 
-RSpec.describe PaymentProviderCustomers::NowPaymentsService, type: :service do
+RSpec.describe PaymentProviderCustomers::NowpaymentsService, type: :service do
   let(:nowpayments_service) { described_class.new(nowpayments_customer) }
   let(:customer) { create(:customer, organization:) }
   let(:nowpayments_provider) { create(:nowpayments_provider) }
   let(:organization) { nowpayments_provider.organization }
-  let(:nowpayments_client) { instance_double(NowPayments::Client) }
-  let(:payment_links_api) { NowPayments::PaymentLinksApi.new(nowpayments_client, 70) }
-  let(:checkout) { NowPayments::Checkout.new(nowpayments_client, 70) }
+  let(:nowpayments_client) { instance_double(Nowpayments::Client) }
+  let(:payment_links_api) { Nowpayments::PaymentLinksApi.new(nowpayments_client, 70) }
+  let(:checkout) { Nowpayments::Checkout.new(nowpayments_client, 70) }
   let(:payment_links_response) { generate(:nowpayments_payment_links_response) }
 
   let(:nowpayments_customer) do
@@ -17,7 +17,7 @@ RSpec.describe PaymentProviderCustomers::NowPaymentsService, type: :service do
   end
 
   before do
-    allow(NowPayments::Client).to receive(:new).and_return(nowpayments_client)
+    allow(Nowpayments::Client).to receive(:new).and_return(nowpayments_client)
     allow(nowpayments_client).to receive(:checkout).and_return(checkout)
     allow(checkout).to receive(:payment_links_api).and_return(payment_links_api)
     allow(payment_links_api).to receive(:payment_links).and_return(payment_links_response)
@@ -80,12 +80,12 @@ RSpec.describe PaymentProviderCustomers::NowPaymentsService, type: :service do
     context 'when failing to generate the checkout link' do
       before do
         allow(payment_links_api)
-          .to receive(:payment_links).and_raise(NowPayments::NowPaymentsError.new(nil, nil, 'error'))
+          .to receive(:payment_links).and_raise(Nowpayments::NowpaymentsError.new(nil, nil, 'error'))
       end
 
       it 'delivers an error webhook' do
         expect { nowpayments_service.create }
-          .to raise_error(NowPayments::NowPaymentsError)
+          .to raise_error(Nowpayments::NowpaymentsError)
 
         expect(SendWebhookJob).to have_been_enqueued
           .with(
@@ -119,7 +119,7 @@ RSpec.describe PaymentProviderCustomers::NowPaymentsService, type: :service do
       let(:nowpayments_provider) { create(:nowpayments_provider, success_redirect_url: nil) }
 
       it 'returns the default success redirect url' do
-        expect(success_redirect_url).to eq(PaymentProviders::NowPaymentsProvider::SUCCESS_REDIRECT_URL)
+        expect(success_redirect_url).to eq(PaymentProviders::NowpaymentsProvider::SUCCESS_REDIRECT_URL)
       end
     end
   end

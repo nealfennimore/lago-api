@@ -2,7 +2,7 @@
 
 require 'rails_helper'
 
-RSpec.describe CreditNotes::Refunds::NowPaymentsService, type: :service do
+RSpec.describe CreditNotes::Refunds::NowpaymentsService, type: :service do
   subject(:nowpayments_service) { described_class.new(credit_note) }
 
   let(:customer) { create(:customer, payment_provider_code: code) }
@@ -10,9 +10,9 @@ RSpec.describe CreditNotes::Refunds::NowPaymentsService, type: :service do
   let(:invoice) { create(:invoice, customer:, organization:) }
   let(:nowpayments_payment_provider) { create(:nowpayments_provider, organization:, code:) }
   let(:nowpayments_customer) { create(:nowpayments_customer, customer:) }
-  let(:nowpayments_client) { instance_double(NowPayments::Client) }
-  let(:modifications_api) { NowPayments::ModificationsApi.new(nowpayments_client, 70) }
-  let(:checkout) { NowPayments::Checkout.new(nowpayments_client, 70) }
+  let(:nowpayments_client) { instance_double(Nowpayments::Client) }
+  let(:modifications_api) { Nowpayments::ModificationsApi.new(nowpayments_client, 70) }
+  let(:checkout) { Nowpayments::Checkout.new(nowpayments_client, 70) }
   let(:refunds_response) { generate(:nowpayments_refunds_response) }
   let(:code) { 'nowpayments_1' }
   let(:payment) do
@@ -41,7 +41,7 @@ RSpec.describe CreditNotes::Refunds::NowPaymentsService, type: :service do
     before do
       payment
 
-      allow(NowPayments::Client).to receive(:new)
+      allow(Nowpayments::Client).to receive(:new)
         .and_return(nowpayments_client)
       allow(nowpayments_client).to receive(:checkout)
         .and_return(checkout)
@@ -91,12 +91,12 @@ RSpec.describe CreditNotes::Refunds::NowPaymentsService, type: :service do
     context 'with an error on nowpayments' do
       before do
         allow(modifications_api).to receive(:refund_captured_payment)
-          .and_raise(NowPayments::NowPaymentsError.new(nil, nil, 'error'))
+          .and_raise(Nowpayments::NowpaymentsError.new(nil, nil, 'error'))
       end
 
       it 'delivers an error webhook' do
         expect { nowpayments_service.create }
-          .to raise_error(NowPayments::NowPaymentsError)
+          .to raise_error(Nowpayments::NowpaymentsError)
 
         expect(SendWebhookJob).to have_been_enqueued
           .with(

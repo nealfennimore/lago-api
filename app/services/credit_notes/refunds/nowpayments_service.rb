@@ -2,7 +2,7 @@
 
 module CreditNotes
   module Refunds
-    class NowPaymentsService < BaseService
+    class NowpaymentsService < BaseService
       include Customers::PaymentProviderFinder
 
       def initialize(credit_note = nil)
@@ -65,7 +65,7 @@ module CreditNotes
       delegate :organization, :customer, :invoice, to: :credit_note
 
       def client
-        @client ||= NowPayments::Client.new(
+        @client ||= Nowpayments::Client.new(
           api_key: payment.payment_provider.api_key,
           env: payment.payment_provider.environment,
           live_url_prefix: payment.payment_provider.live_prefix,
@@ -89,10 +89,10 @@ module CreditNotes
 
       def create_nowpayments_refund
         client.checkout.modifications_api.refund_captured_payment(
-          Lago::NowPayments::Params.new(nowpayments_refund_params).to_h,
+          Lago::Nowpayments::Params.new(nowpayments_refund_params).to_h,
           payment.provider_payment_id,
         )
-      rescue NowPayments::NowPaymentsError => e
+      rescue Nowpayments::NowpaymentsError => e
         deliver_error_webhook(message: e.msg, code: e.code)
         update_credit_note_status(:failed)
 

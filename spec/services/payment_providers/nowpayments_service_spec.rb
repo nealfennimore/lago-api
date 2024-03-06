@@ -2,7 +2,7 @@
 
 require 'rails_helper'
 
-RSpec.describe PaymentProviders::NowPaymentsService, type: :service do
+RSpec.describe PaymentProviders::NowpaymentsService, type: :service do
   subject(:nowpayments_service) { described_class.new(membership.user) }
 
   let(:membership) { create(:membership) }
@@ -17,7 +17,7 @@ RSpec.describe PaymentProviders::NowPaymentsService, type: :service do
     it 'creates an nowpayments provider' do
       expect do
         nowpayments_service.create_or_update(organization:, api_key:, code:, name:, merchant_account:, success_redirect_url:)
-      end.to change(PaymentProviders::NowPaymentsProvider, :count).by(1)
+      end.to change(PaymentProviders::NowpaymentsProvider, :count).by(1)
     end
 
     context 'when organization already has an nowpayments provider' do
@@ -91,7 +91,7 @@ RSpec.describe PaymentProviders::NowPaymentsService, type: :service do
       expect(result).to be_success
 
       expect(result.event).to eq(body)
-      expect(PaymentProviders::NowPayments::HandleEventJob).to have_been_enqueued
+      expect(PaymentProviders::Nowpayments::HandleEventJob).to have_been_enqueued
     end
 
     context 'when organization does not exist' do
@@ -150,14 +150,14 @@ RSpec.describe PaymentProviders::NowPaymentsService, type: :service do
   end
 
   describe '#handle_event' do
-    let(:payment_service) { instance_double(Invoices::Payments::NowPaymentsService) }
-    let(:payment_provider_service) { instance_double(PaymentProviderCustomers::NowPaymentsService) }
+    let(:payment_service) { instance_double(Invoices::Payments::NowpaymentsService) }
+    let(:payment_provider_service) { instance_double(PaymentProviderCustomers::NowpaymentsService) }
     let(:service_result) { BaseService::Result.new }
 
     before do
-      allow(Invoices::Payments::NowPaymentsService).to receive(:new)
+      allow(Invoices::Payments::NowpaymentsService).to receive(:new)
         .and_return(payment_service)
-      allow(PaymentProviderCustomers::NowPaymentsService).to receive(:new)
+      allow(PaymentProviderCustomers::NowpaymentsService).to receive(:new)
         .and_return(payment_provider_service)
       allow(payment_service).to receive(:update_payment_status)
         .and_return(service_result)
@@ -179,7 +179,7 @@ RSpec.describe PaymentProviders::NowPaymentsService, type: :service do
       it 'routes the event to an other service' do
         nowpayments_service.handle_event(organization:, event_json:)
 
-        expect(PaymentProviderCustomers::NowPaymentsService).to have_received(:new)
+        expect(PaymentProviderCustomers::NowpaymentsService).to have_received(:new)
         expect(payment_provider_service).to have_received(:preauthorise)
       end
     end
@@ -198,13 +198,13 @@ RSpec.describe PaymentProviders::NowPaymentsService, type: :service do
       it 'routes the event to an other service' do
         nowpayments_service.handle_event(organization:, event_json:)
 
-        expect(Invoices::Payments::NowPaymentsService).to have_received(:new)
+        expect(Invoices::Payments::NowpaymentsService).to have_received(:new)
         expect(payment_service).to have_received(:update_payment_status)
       end
     end
 
     context 'when succeeded refund event' do
-      let(:refund_service) { instance_double(CreditNotes::Refunds::NowPaymentsService) }
+      let(:refund_service) { instance_double(CreditNotes::Refunds::NowpaymentsService) }
 
       let(:event_json) do
         JSON.parse(event_response_json)['notificationItems']
@@ -217,7 +217,7 @@ RSpec.describe PaymentProviders::NowPaymentsService, type: :service do
       end
 
       before do
-        allow(CreditNotes::Refunds::NowPaymentsService).to receive(:new)
+        allow(CreditNotes::Refunds::NowpaymentsService).to receive(:new)
           .and_return(refund_service)
         allow(refund_service).to receive(:update_status)
           .and_return(service_result)
@@ -226,7 +226,7 @@ RSpec.describe PaymentProviders::NowPaymentsService, type: :service do
       it 'routes the event to an other service' do
         nowpayments_service.handle_event(organization:, event_json:)
 
-        expect(CreditNotes::Refunds::NowPaymentsService).to have_received(:new)
+        expect(CreditNotes::Refunds::NowpaymentsService).to have_received(:new)
         expect(refund_service).to have_received(:update_status)
       end
     end

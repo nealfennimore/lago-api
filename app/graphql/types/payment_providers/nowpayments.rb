@@ -2,8 +2,8 @@
 
 module Types
   module PaymentProviders
-    class NowPayments < Types::BaseObject
-      graphql_name 'NowPaymentsProvider'
+    class Nowpayments < Types::BaseObject
+      graphql_name 'NowpaymentsProvider'
 
       field :api_key, String, null: true
       field :code, String, null: false
