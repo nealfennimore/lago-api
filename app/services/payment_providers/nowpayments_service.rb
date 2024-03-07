@@ -19,23 +19,12 @@ module PaymentProviders
         )
       end
 
-      api_key = nowpayments_provider.api_key
-
       nowpayments_provider.api_key = args[:api_key] if args.key?(:api_key)
       nowpayments_provider.code = args[:code] if args.key?(:code)
       nowpayments_provider.name = args[:name] if args.key?(:name)
       nowpayments_provider.hmac_key = args[:hmac_key] if args.key?(:hmac_key)
       nowpayments_provider.success_redirect_url = args[:success_redirect_url] if args.key?(:success_redirect_url)
       nowpayments_provider.save!
-
-      if api_key != nowpayments_provider.api_key
-        # NOTE: ensure existing payment_provider_customers are
-        #       attached to the provider
-        reattach_provider_customers(
-          organization_id: args[:organization_id],
-          nowpayments_provider:,
-        )
-      end
 
       result.nowpayments_provider = nowpayments_provider
       result
@@ -55,7 +44,7 @@ module PaymentProviders
 
       return payment_provider_result unless payment_provider_result.success?
 
-      validator = ::Nowpayments::Utils::HmacValidator.new
+      validator = Lago::Nowpayments::Utils::HmacValidator.new
       hmac_key = payment_provider_result.payment_provider.hmac_key
 
       if hmac_key && !validator.valid_notification_hmac?(signature, body, hmac_key)
@@ -80,18 +69,9 @@ module PaymentProviders
 
       return result if amount != 0
 
-      service = PaymentProviderCustomers::NowpaymentsService.new
+      # TODO: Handle events
 
-      result = service.preauthorise(organization, event)
       result.raise_if_error! || result
-    end
-
-    def reattach_provider_customers(organization_id:, nowpayments_provider:)
-      PaymentProviderCustomers::NowpaymentsCustomer
-        .joins(:customer)
-        .where(payment_provider_id: nil, customers: { organization_id: }).each do |c|
-          c.update(payment_provider_id: nowpayments_provider.id)
-        end
     end
 
     private

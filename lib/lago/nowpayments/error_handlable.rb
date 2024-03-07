@@ -2,11 +2,6 @@
 
 module Lago
   module Nowpayments
-    module Error
-      def initialize(message, code)
-
-      end
-
     module ErrorHandlable
       def handle_nowpayments_response(res)
         return [true, nil] if res.status < 400

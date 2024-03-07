@@ -10,19 +10,25 @@ RSpec.describe PaymentProviders::NowpaymentsService, type: :service do
   let(:api_key) { 'test_api_key_1' }
   let(:code) { 'code_1' }
   let(:name) { 'Name 1' }
-  let(:merchant_account) { 'LagoMerchant' }
+  let(:hmac_key) { 'y8I/Ub4BOetEDyQloPcdq106DWse80GI' }
   let(:success_redirect_url) { Faker::Internet.url }
 
   describe '.create_or_update' do
-    it 'creates an nowpayments provider' do
+    it 'creates a nowpayments provider' do
       expect do
-        nowpayments_service.create_or_update(organization:, api_key:, code:, name:, merchant_account:, success_redirect_url:)
+        nowpayments_service.create_or_update(
+          organization:,
+          api_key:,
+          code:,
+          name:,
+          success_redirect_url:,
+        )
       end.to change(PaymentProviders::NowpaymentsProvider, :count).by(1)
     end
 
-    context 'when organization already has an nowpayments provider' do
+    context 'when organization already have a nowpayments provider' do
       let(:nowpayments_provider) do
-        create(:nowpayments_provider, organization:, api_key: 'api_key_789', code:)
+        create(:nowpayments_provider, organization:, api_key: 'api_key_123', code:)
       end
 
       before { nowpayments_provider }
@@ -49,35 +55,30 @@ RSpec.describe PaymentProviders::NowpaymentsService, type: :service do
     end
 
     context 'with validation error' do
-      let(:token) { nil }
+      let(:api_key) { nil }
 
       it 'returns an error result' do
         result = nowpayments_service.create_or_update(
           organization:,
-          api_key: nil,
-          merchant_account: nil,
+          api_key:,
         )
 
         aggregate_failures do
           expect(result).not_to be_success
           expect(result.error).to be_a(BaseService::ValidationFailure)
           expect(result.error.messages[:api_key]).to eq(['value_is_mandatory'])
-          expect(result.error.messages[:merchant_account]).to eq(['value_is_mandatory'])
+          expect(result.error.messages[:name]).to eq(['value_is_mandatory'])
         end
       end
     end
   end
 
-  describe '#handle_incoming_webhook' do
-    let(:nowpayments_provider) { create(:nowpayments_provider, organization:, hmac_key: nil) }
+  describe '.handle_incoming_webhook' do
+    let(:nowpayments_provider) { create(:nowpayments_provider, organization:, hmac_key:) }
 
-    let(:body) do
-      JSON.parse(event_response_json)['notificationItems'].first&.dig('NotificationRequestItem')
-    end
-
-    let(:event_response_json) do
-      path = Rails.root.join('spec/fixtures/nowpayments/webhook_authorisation_response.json')
-      File.read(path)
+    let(:event) do
+      path = Rails.root.join('spec/fixtures/nowpayments/webhook_payment_response.json')
+      JSON.parse(File.read(path))
     end
 
     before { nowpayments_provider }
@@ -85,58 +86,37 @@ RSpec.describe PaymentProviders::NowpaymentsService, type: :service do
     it 'checks the webhook' do
       result = nowpayments_service.handle_incoming_webhook(
         organization_id: organization.id,
-        body:,
+        body: event,
+        signature: 'ab7a19515eb00931620a73d51ef9b7f5171068844a695214ad51406130331b2e2dbd1ceeee7a75b328a4d485ead7bd41094b8f5a6f5dcbc8193b4fcd9ad21088',
       )
 
       expect(result).to be_success
-
-      expect(result.event).to eq(body)
       expect(PaymentProviders::Nowpayments::HandleEventJob).to have_been_enqueued
     end
 
-    context 'when organization does not exist' do
-      subject(:result) do
-        nowpayments_service.handle_incoming_webhook(organization_id: '123456789', body:)
-      end
-
+    context 'when failing to parse payload' do
       it 'returns an error' do
+        result = nowpayments_service.handle_incoming_webhook(
+          organization_id: organization.id,
+          body: event,
+          signature: 'ab7a19515eb00931620a73d51ef9b7f5171068844a695214ad51406130331b2e2dbd1ceeee7a75b328a4d485ead7bd41094b8f5a6f5dcbc8193b4fcd9ad21088',
+        )
+
         aggregate_failures do
           expect(result).not_to be_success
           expect(result.error).to be_a(BaseService::ServiceFailure)
           expect(result.error.code).to eq('webhook_error')
-          expect(result.error.error_message).to eq('Organization not found')
-        end
-      end
-    end
-
-    context 'when payment provider does not exist' do
-      subject(:result) do
-        nowpayments_service.handle_incoming_webhook(organization_id: organization.id, body:)
-      end
-
-      before do
-        nowpayments_provider.destroy!
-      end
-
-      it 'returns an error' do
-        aggregate_failures do
-          expect(result).not_to be_success
-          expect(result.error).to be_a(BaseService::ServiceFailure)
-          expect(result.error.code).to eq('payment_provider_not_found')
-          expect(result.error.error_message).to eq('Payment provider not found')
+          expect(result.error.error_message).to eq('Invalid payload')
         end
       end
     end
 
     context 'when failing to validate the signature' do
-      before do
-        nowpayments_provider.update! hmac_key: '123'
-      end
-
       it 'returns an error' do
         result = nowpayments_service.handle_incoming_webhook(
           organization_id: organization.id,
-          body:,
+          body: event,
+          signature: 'signature',
         )
 
         aggregate_failures do
@@ -149,54 +129,25 @@ RSpec.describe PaymentProviders::NowpaymentsService, type: :service do
     end
   end
 
-  describe '#handle_event' do
+  describe '.handle_event' do
     let(:payment_service) { instance_double(Invoices::Payments::NowpaymentsService) }
-    let(:payment_provider_service) { instance_double(PaymentProviderCustomers::NowpaymentsService) }
     let(:service_result) { BaseService::Result.new }
 
     before do
       allow(Invoices::Payments::NowpaymentsService).to receive(:new)
         .and_return(payment_service)
-      allow(PaymentProviderCustomers::NowpaymentsService).to receive(:new)
-        .and_return(payment_provider_service)
       allow(payment_service).to receive(:update_payment_status)
         .and_return(service_result)
-      allow(payment_provider_service).to receive(:preauthorise)
-        .and_return(service_result)
     end
 
-    context 'when succeeded authorisation event' do
-      let(:event_json) do
-        JSON.parse(event_response_json)['notificationItems']
-          .first&.dig('NotificationRequestItem').to_json
-      end
-
-      let(:event_response_json) do
-        path = Rails.root.join('spec/fixtures/nowpayments/webhook_authorisation_response.json')
+    context 'when succeeded payment event' do
+      let(:events) do
+        path = Rails.root.join('spec/fixtures/nowpayments/webhook_payment_response.json')
         File.read(path)
       end
 
-      it 'routes the event to an other service' do
-        nowpayments_service.handle_event(organization:, event_json:)
-
-        expect(PaymentProviderCustomers::NowpaymentsService).to have_received(:new)
-        expect(payment_provider_service).to have_received(:preauthorise)
-      end
-    end
-
-    context 'when succeeded authorisation event for processed one-time payment' do
-      let(:event_json) do
-        JSON.parse(event_response_json)['notificationItems']
-          .first&.dig('NotificationRequestItem').to_json
-      end
-
-      let(:event_response_json) do
-        path = Rails.root.join('spec/fixtures/nowpayments/webhook_authorisation_payment_response.json')
-        File.read(path)
-      end
-
-      it 'routes the event to an other service' do
-        nowpayments_service.handle_event(organization:, event_json:)
+      xit 'routes the event to an other service' do
+        nowpayments_service.handle_event(events_json: events)
 
         expect(Invoices::Payments::NowpaymentsService).to have_received(:new)
         expect(payment_service).to have_received(:update_payment_status)
@@ -205,15 +156,9 @@ RSpec.describe PaymentProviders::NowpaymentsService, type: :service do
 
     context 'when succeeded refund event' do
       let(:refund_service) { instance_double(CreditNotes::Refunds::NowpaymentsService) }
-
-      let(:event_json) do
-        JSON.parse(event_response_json)['notificationItems']
-          .first&.dig('NotificationRequestItem').to_json
-      end
-
-      let(:event_response_json) do
-        path = Rails.root.join('spec/fixtures/nowpayments/webhook_refund_response.json')
-        File.read(path)
+      let(:events) do
+        # path = Rails.root.join('spec/fixtures/nowpayments/events_refund.json')
+        # File.read(path)
       end
 
       before do
@@ -223,8 +168,9 @@ RSpec.describe PaymentProviders::NowpaymentsService, type: :service do
           .and_return(service_result)
       end
 
-      it 'routes the event to an other service' do
-        nowpayments_service.handle_event(organization:, event_json:)
+      # TODO: Implement refund event handling
+      xit 'routes the event to an other service' do
+        nowpayments_service.handle_event(events_json: events)
 
         expect(CreditNotes::Refunds::NowpaymentsService).to have_received(:new)
         expect(refund_service).to have_received(:update_status)

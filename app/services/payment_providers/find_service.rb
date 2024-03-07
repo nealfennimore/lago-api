@@ -12,7 +12,13 @@ module PaymentProviders
       @scope = PaymentProviders::BaseProvider.where(organization_id:)
 
       if payment_provider_type.present?
-        @scope = @scope.where(type: "PaymentProviders::#{payment_provider_type.classify}Provider")
+        cls = if payment_provider_type == 'nowpayments'
+          payment_provider_type.capitalize
+        else
+          payment_provider_type.classify
+        end
+
+        @scope = @scope.where(type: "PaymentProviders::#{cls}Provider")
       end
 
       super(nil)
