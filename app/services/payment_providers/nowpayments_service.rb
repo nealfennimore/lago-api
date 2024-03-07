@@ -2,6 +2,8 @@
 
 module PaymentProviders
   class NowpaymentsService < BaseService
+    WEBHOOKS_EVENTS = %w[waiting confirming confirmed sending partially_paid finished failed refunded expired].freeze
+
     def create_or_update(**args)
       payment_provider_result = PaymentProviders::FindService.call(
         organization_id: args[:organization].id,
@@ -60,16 +62,31 @@ module PaymentProviders
     def handle_event(organization:, event_json:)
       event = JSON.parse(event_json)
 
-      payment_type = event.dig('additionalData', 'metadata.payment_type')
-
-      if payment_type == 'one-time'
-        update_result = update_payment_status(event, payment_type)
-        return update_result.raise_if_error! || update_result
+      unless WEBHOOKS_EVENTS.include?(event['payment_status'])
+        return result.service_failure!(
+          code: 'webhook_error',
+          message: "Invalid nowpayments event code: #{event['eventCode']}",
+        )
       end
 
-      return result if amount != 0
+      case event['payment_status']
+      when 'finished'
+        provider_payment_id = event['payment_id']
+        service = Invoices::Payments::NowpaymentsService.new
+        result = service.update_payment_status(provider_payment_id:, status: :succeeded)
+        return result.raise_if_error! || result
+      when 'refunded'
+        provider_refund_id = event['payment_id']
+        service = CreditNotes::Refunds::NowpaymentsService.new
+        result = service.update_status(provider_refund_id:, status: :succeeded)
+        return result.raise_if_error! || result
+      when 'failed', 'expired'
+        provider_refund_id = event['payment_id']
+        service = Invoices::Payments::NowpaymentsService.new
+        result = service.update_status(provider_refund_id:, status: :failed)
+        return result.raise_if_error! || result
 
-      # TODO: Handle events
+      end
 
       result.raise_if_error! || result
     end

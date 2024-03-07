@@ -1,0 +1,26 @@
+{
+    "actually_paid": 0,
+    "actually_paid_at_fiat": 0,
+    "fee": {
+        "currency": "btc",
+        "withdrawalFee": 0,
+        "serviceFee": 0,
+        "depositFee": 0
+    },
+    "invoice_id": 4868174272,
+    "order_description": "",
+    "order_id": "",
+    "outcome_amount": 119132.0904799,
+    "pay_currency": "btc",
+    "outcome_currency": "btc",
+    "parent_payment_id": null,
+    "pay_address": "3ByZ2Jv6dRrPMswoVUR6bwb2L3smkYQL5V",
+    "pay_amount": 119132.09107504,
+    "payin_extra_id": null,
+    "payment_extra_ids": null,
+    "payment_id": 5078012453,
+    "payment_status": "refunded",
+    "price_amount": 7896789789,
+    "price_currency": "usd",
+    "purchase_id": "4476912270"
+}

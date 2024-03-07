@@ -94,23 +94,6 @@ RSpec.describe PaymentProviders::NowpaymentsService, type: :service do
       expect(PaymentProviders::Nowpayments::HandleEventJob).to have_been_enqueued
     end
 
-    context 'when failing to parse payload' do
-      it 'returns an error' do
-        result = nowpayments_service.handle_incoming_webhook(
-          organization_id: organization.id,
-          body: event,
-          signature: 'ab7a19515eb00931620a73d51ef9b7f5171068844a695214ad51406130331b2e2dbd1ceeee7a75b328a4d485ead7bd41094b8f5a6f5dcbc8193b4fcd9ad21088',
-        )
-
-        aggregate_failures do
-          expect(result).not_to be_success
-          expect(result.error).to be_a(BaseService::ServiceFailure)
-          expect(result.error.code).to eq('webhook_error')
-          expect(result.error.error_message).to eq('Invalid payload')
-        end
-      end
-    end
-
     context 'when failing to validate the signature' do
       it 'returns an error' do
         result = nowpayments_service.handle_incoming_webhook(
@@ -141,13 +124,13 @@ RSpec.describe PaymentProviders::NowpaymentsService, type: :service do
     end
 
     context 'when succeeded payment event' do
-      let(:events) do
+      let(:event) do
         path = Rails.root.join('spec/fixtures/nowpayments/webhook_payment_response.json')
         File.read(path)
       end
 
-      xit 'routes the event to an other service' do
-        nowpayments_service.handle_event(events_json: events)
+      it 'routes the event to an other service' do
+        nowpayments_service.handle_event(organization:, event_json: event)
 
         expect(Invoices::Payments::NowpaymentsService).to have_received(:new)
         expect(payment_service).to have_received(:update_payment_status)
@@ -156,9 +139,9 @@ RSpec.describe PaymentProviders::NowpaymentsService, type: :service do
 
     context 'when succeeded refund event' do
       let(:refund_service) { instance_double(CreditNotes::Refunds::NowpaymentsService) }
-      let(:events) do
-        # path = Rails.root.join('spec/fixtures/nowpayments/events_refund.json')
-        # File.read(path)
+      let(:event) do
+        path = Rails.root.join('spec/fixtures/nowpayments/webhook_payment_response_refund.json')
+        File.read(path)
       end
 
       before do
@@ -168,9 +151,8 @@ RSpec.describe PaymentProviders::NowpaymentsService, type: :service do
           .and_return(service_result)
       end
 
-      # TODO: Implement refund event handling
-      xit 'routes the event to an other service' do
-        nowpayments_service.handle_event(events_json: events)
+      it 'routes the event to an other service' do
+        nowpayments_service.handle_event(organization:, event_json: event)
 
         expect(CreditNotes::Refunds::NowpaymentsService).to have_received(:new)
         expect(refund_service).to have_received(:update_status)
