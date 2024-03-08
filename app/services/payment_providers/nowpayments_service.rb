@@ -83,7 +83,7 @@ module PaymentProviders
       when 'failed', 'expired'
         provider_refund_id = event['payment_id']
         service = Invoices::Payments::NowpaymentsService.new
-        result = service.update_status(provider_refund_id:, status: :failed)
+        result = service.update_payment_status(provider_refund_id:, status: :failed)
         return result.raise_if_error! || result
 
       end

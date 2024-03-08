@@ -65,11 +65,7 @@ module CreditNotes
       delegate :organization, :customer, :invoice, to: :credit_note
 
       def client
-        @client ||= Nowpayments::Client.new(
-          api_key: payment.payment_provider.api_key,
-          env: payment.payment_provider.environment,
-          live_url_prefix: payment.payment_provider.live_prefix,
-        )
+        @client ||= Nowpayments::Client.new
       end
 
       def should_process_refund?

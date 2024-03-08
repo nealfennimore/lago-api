@@ -36,11 +36,11 @@ module Invoices
         payment = Payment.new(
           invoice:,
           payment_provider_id: nowpayments_payment_provider.id,
-          payment_provider_customer_id: customer.nowpayments_customer.id,
+          payment_provider_customer_id: nil, # customer.nowpayments_customer.id,
           amount_cents: invoice.total_amount_cents,
           amount_currency: invoice.currency.upcase,
           provider_payment_id: res.response['payment_id'],
-          status: res.response['resultCode'],
+          status: res.response['payment_status'],
         )
         payment.save!
 
@@ -53,6 +53,7 @@ module Invoices
 
       def update_payment_status(provider_payment_id:, status:, metadata: {})
         payment = if metadata[:payment_type] == 'one-time'
+          # TODO: Implement
           create_payment(provider_payment_id:, metadata:)
         else
           Payment.find_by(provider_payment_id:)
@@ -76,16 +77,10 @@ module Invoices
       def generate_payment_url
         return result unless should_process_payment?
 
-        res = client.checkout.payment_links_api.payment_links(Lago::Nowpayments::Params.new(payment_url_params).to_h)
-        nowpayments_success, nowpayments_error = handle_nowpayments_response(res)
-        result.service_failure!(code: nowpayments_error.code, message: nowpayments_error.msg) unless nowpayments_success
-
-        return result unless result.success?
-
-        result.payment_url = res.response['url']
+        result.payment_url = "https://sandbox.nowpayments.io/payment/?iid=#{invoice&.id}"
 
         result
-      rescue Nowpayments::NowpaymentsError => e
+      rescue Lago::Nowpayments::NowpaymentsError => e
         deliver_error_webhook(e)
 
         result.service_failure!(code: e.code, message: e.msg)
@@ -105,7 +100,7 @@ module Invoices
         Payment.new(
           invoice:,
           payment_provider_id: nowpayments_payment_provider.id,
-          payment_provider_customer_id: customer.nowpayments_customer.id,
+          payment_provider_customer_id: nil, # customer.nowpayments_customer.id,
           amount_cents: invoice.total_amount_cents,
           amount_currency: invoice.currency.upcase,
           provider_payment_id:,
@@ -116,15 +111,13 @@ module Invoices
         return false if invoice.succeeded? || invoice.voided?
         return false if nowpayments_payment_provider.blank?
 
-        customer&.nowpayments_customer&.provider_customer_id
+        # Not customer in nowpayments
+        # customer&.nowpayments_customer&.provider_customer_id
+        true
       end
 
       def client
-        @client ||= Nowpayments::Client.new(
-          api_key: nowpayments_payment_provider.api_key,
-          env: nowpayments_payment_provider.environment,
-          live_url_prefix: nowpayments_payment_provider.live_prefix,
-        )
+        @client ||= Lago::Nowpayments::Client.new
       end
 
       def success_redirect_url
@@ -135,80 +128,55 @@ module Invoices
         @nowpayments_payment_provider ||= payment_provider(customer)
       end
 
-      def update_payment_method_id
-        result = client.checkout.payments_api.payment_methods(
-          Lago::Nowpayments::Params.new(payment_method_params).to_h,
-        ).response
+      # def update_payment_method_id
+      #   result = client.checkout.payments_api.payment_methods(
+      #     Lago::Nowpayments::Params.new(payment_method_params).to_h,
+      #   ).response
 
-        payment_method_id = result['storedPaymentMethods']&.first&.dig('id')
-        customer.nowpayments_customer.update!(payment_method_id:) if payment_method_id
-      end
+      #   payment_method_id = result['storedPaymentMethods']&.first&.dig('id')
+      #   customer.nowpayments_customer.update!(payment_method_id:) if payment_method_id
+      # end
 
       def create_nowpayments_payment
-        update_payment_method_id
-
-        client.checkout.payments_api.payments(Lago::Nowpayments::Params.new(payment_params).to_h)
-      rescue Nowpayments::ValidationError => e
-        deliver_error_webhook(e)
-        update_invoice_payment_status(payment_status: :failed, deliver_webhook: false)
-        nil
-      rescue Nowpayments::NowpaymentsError => e
+        # update_payment_method_id
+        client.create_payment_by_invoice(Lago::Nowpayments::Params.new(payment_params).to_h)
+      rescue Lago::Nowpayments::NowpaymentsError => e
         deliver_error_webhook(e)
         update_invoice_payment_status(payment_status: :failed, deliver_webhook: false)
         raise e
       end
 
-      def payment_method_params
-        {
-          merchantAccount: nowpayments_payment_provider.merchant_account,
-          shopperReference: customer.nowpayments_customer.provider_customer_id,
-        }
-      end
-
       def payment_params
-        prms = {
-          amount: {
-            currency: invoice.currency.upcase,
-            value: invoice.total_amount_cents,
-          },
-          reference: invoice.number,
-          paymentMethod: {
-            type: 'scheme',
-            storedPaymentMethodId: customer.nowpayments_customer.payment_method_id,
-          },
-          shopperReference: customer.nowpayments_customer.provider_customer_id,
-          merchantAccount: nowpayments_payment_provider.merchant_account,
-          shopperInteraction: 'ContAuth',
-          recurringProcessingModel: 'UnscheduledCardOnFile',
+        {
+          iid: invoice.number,
+          # TODO: Need to define other values for this
+          pay_currency: 'btc',
         }
-        prms[:shopperEmail] = customer.email if customer.email
-        prms
       end
 
-      def payment_url_params
-        prms = {
-          reference: invoice.number,
-          amount: {
-            value: invoice.total_amount_cents,
-            currency: invoice.currency.upcase,
-          },
-          merchantAccount: nowpayments_payment_provider.merchant_account,
-          returnUrl: success_redirect_url,
-          shopperReference: customer.external_id,
-          storePaymentMethodMode: 'enabled',
-          recurringProcessingModel: 'UnscheduledCardOnFile',
-          expiresAt: Time.current + 1.day,
-          metadata: {
-            lago_customer_id: customer.id,
-            lago_invoice_id: invoice.id,
-            invoice_issuing_date: invoice.issuing_date.iso8601,
-            invoice_type: invoice.invoice_type,
-            payment_type: 'one-time',
-          },
-        }
-        prms[:shopperEmail] = customer.email if customer.email
-        prms
-      end
+      # def payment_url_params
+      #   prms = {
+      #     reference: invoice.number,
+      #     amount: {
+      #       value: invoice.total_amount_cents,
+      #       currency: invoice.currency.upcase,
+      #     },
+      #     returnUrl: success_redirect_url,
+      #     shopperReference: customer.external_id,
+      #     storePaymentMethodMode: 'enabled',
+      #     recurringProcessingModel: 'UnscheduledCardOnFile',
+      #     expiresAt: Time.current + 1.day,
+      #     metadata: {
+      #       lago_customer_id: customer.id,
+      #       lago_invoice_id: invoice.id,
+      #       invoice_issuing_date: invoice.issuing_date.iso8601,
+      #       invoice_type: invoice.invoice_type,
+      #       payment_type: 'one-time',
+      #     },
+      #   }
+      #   prms[:shopperEmail] = customer.email if customer.email
+      #   prms
+      # end
 
       def invoice_payment_status(payment_status)
         return :pending if PENDING_STATUSES.include?(payment_status)
