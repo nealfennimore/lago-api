@@ -23,6 +23,12 @@ RSpec.describe Resolvers::PaymentProvidersResolver, type: :graphql do
               code
               __typename
             }
+            ... on NowpaymentsProvider {
+              id
+              code
+              name
+              __typename
+            }
           }
           metadata { currentPage, totalCount }
         }
@@ -35,11 +41,13 @@ RSpec.describe Resolvers::PaymentProvidersResolver, type: :graphql do
   let(:adyen_provider) { create(:adyen_provider, organization:) }
   let(:gocardless_provider) { create(:gocardless_provider, organization:) }
   let(:stripe_provider) { create(:stripe_provider, organization:) }
+  let(:nowpayments_provider) { create(:nowpayments_provider, organization:) }
 
   before do
     adyen_provider
     gocardless_provider
     stripe_provider
+    nowpayments_provider
   end
 
   context 'when type is present' do
@@ -61,6 +69,12 @@ RSpec.describe Resolvers::PaymentProvidersResolver, type: :graphql do
               ... on StripeProvider {
                 id
                 code
+                __typename
+              }
+              ... on NowpaymentsProvider {
+                id
+                code
+                name
                 __typename
               }
             }
@@ -108,6 +122,9 @@ RSpec.describe Resolvers::PaymentProvidersResolver, type: :graphql do
       stripe_provider_result = payment_providers_response['collection'].find do |record|
         record['__typename'] == 'StripeProvider'
       end
+      nowpayments_provider_result = payment_providers_response['collection'].find do |record|
+        record['__typename'] == 'NowpaymentsProvider'
+      end
 
       aggregate_failures do
         expect(payment_providers_response['collection'].count).to eq(3)
@@ -115,9 +132,10 @@ RSpec.describe Resolvers::PaymentProvidersResolver, type: :graphql do
         expect(adyen_provider_result['id']).to eq(adyen_provider.id)
         expect(gocardless_provider_result['id']).to eq(gocardless_provider.id)
         expect(stripe_provider_result['id']).to eq(stripe_provider.id)
+        expect(nowpayments_provider_result['id']).to eq(nowpayments_provider.id)
 
         expect(payment_providers_response['metadata']['currentPage']).to eq(1)
-        expect(payment_providers_response['metadata']['totalCount']).to eq(3)
+        expect(payment_providers_response['metadata']['totalCount']).to eq(4)
       end
     end
   end

@@ -31,6 +31,8 @@ module Resolvers
         'PaymentProviders::StripeProvider'
       when 'gocardless'
         'PaymentProviders::GocardlessProvider'
+      when 'nowpayments'
+        'PaymentProviders::NowpaymentsProvider'
       else
         raise(NotImplementedError)
       end

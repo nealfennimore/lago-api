@@ -38,4 +38,5 @@ RSpec.describe Types::OrganizationType do
   it { is_expected.to have_field(:adyen_payment_providers).of_type('[AdyenProvider!]') }
   it { is_expected.to have_field(:gocardless_payment_providers).of_type('[GocardlessProvider!]') }
   it { is_expected.to have_field(:stripe_payment_providers).of_type('[StripeProvider!]') }
+  it { is_expected.to have_field(:nowpayments_payment_providers).of_type('[NowpaymentsProvider!]') }
 end

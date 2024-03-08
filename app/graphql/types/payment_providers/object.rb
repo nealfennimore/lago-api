@@ -17,6 +17,8 @@ module Types
           Types::PaymentProviders::Stripe
         when 'PaymentProviders::GocardlessProvider'
           Types::PaymentProviders::Gocardless
+        when 'PaymentProviders::NowpaymentsProvider'
+          Types::PaymentProviders::Nowpayments
         else
           raise "Unexpected Payment provider type: #{object.inspect}"
         end

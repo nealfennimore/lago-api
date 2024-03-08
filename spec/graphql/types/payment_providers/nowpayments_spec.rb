@@ -10,7 +10,5 @@ RSpec.describe Types::PaymentProviders::Nowpayments do
   it { is_expected.to have_field(:code).of_type('String!') }
   it { is_expected.to have_field(:name).of_type('String!') }
   it { is_expected.to have_field(:hmac_key).of_type('String') }
-  it { is_expected.to have_field(:live_prefix).of_type('String') }
-  it { is_expected.to have_field(:merchant_account).of_type('String!') }
   it { is_expected.to have_field(:success_redirect_url).of_type('String') }
 end

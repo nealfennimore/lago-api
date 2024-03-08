@@ -25,7 +25,7 @@ module Invoices
           return result
         end
 
-        increment_payment_attempts
+        increment_payment_attemppts
 
         res = create_nowpayments_payment
         return result unless res
