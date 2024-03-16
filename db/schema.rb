@@ -10,7 +10,7 @@
 #
 # It's strongly recommended that you check this file into your version control system.
 
-ActiveRecord::Schema[7.0].define(version: 2024_02_05_160647) do
+ActiveRecord::Schema[7.0].define(version: 2024_03_11_091817) do
   # These are extensions that must be enabled in order to support this database
   enable_extension "pgcrypto"
   enable_extension "plpgsql"
@@ -89,6 +89,8 @@ ActiveRecord::Schema[7.0].define(version: 2024_02_05_160647) do
     t.datetime "updated_at", null: false
     t.uuid "group_id"
     t.jsonb "grouped_by", default: {}, null: false
+    t.uuid "charge_filter_id"
+    t.index ["charge_filter_id"], name: "index_adjusted_fees_on_charge_filter_id"
     t.index ["charge_id"], name: "index_adjusted_fees_on_charge_id"
     t.index ["fee_id"], name: "index_adjusted_fees_on_fee_id"
     t.index ["group_id"], name: "index_adjusted_fees_on_group_id"
@@ -167,10 +169,12 @@ ActiveRecord::Schema[7.0].define(version: 2024_02_05_160647) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.jsonb "grouped_by", default: {}, null: false
+    t.uuid "charge_filter_id"
     t.index ["charge_id"], name: "index_cached_aggregations_on_charge_id"
     t.index ["event_id"], name: "index_cached_aggregations_on_event_id"
     t.index ["external_subscription_id"], name: "index_cached_aggregations_on_external_subscription_id"
     t.index ["group_id"], name: "index_cached_aggregations_on_group_id"
+    t.index ["organization_id", "timestamp", "charge_id", "charge_filter_id"], name: "index_timestamp_filter_lookup"
     t.index ["organization_id", "timestamp", "charge_id", "group_id"], name: "index_timestamp_group_lookup"
     t.index ["organization_id", "timestamp", "charge_id"], name: "index_timestamp_lookup"
     t.index ["organization_id"], name: "index_cached_aggregations_on_organization_id"
@@ -194,6 +198,7 @@ ActiveRecord::Schema[7.0].define(version: 2024_02_05_160647) do
     t.datetime "created_at", null: false
     t.datetime "updated_at", null: false
     t.datetime "deleted_at"
+    t.string "invoice_display_name"
     t.index ["charge_id"], name: "index_charge_filters_on_charge_id"
     t.index ["deleted_at"], name: "index_charge_filters_on_deleted_at"
   end
@@ -433,8 +438,8 @@ ActiveRecord::Schema[7.0].define(version: 2024_02_05_160647) do
     t.jsonb "metadata", default: {}, null: false
     t.uuid "subscription_id"
     t.datetime "deleted_at"
-    t.string "external_subscription_id"
     t.string "external_customer_id"
+    t.string "external_subscription_id"
     t.index ["customer_id"], name: "index_events_on_customer_id"
     t.index ["deleted_at"], name: "index_events_on_deleted_at"
     t.index ["organization_id", "code", "created_at"], name: "index_events_on_organization_id_and_code_and_created_at", where: "(deleted_at IS NULL)"
@@ -670,9 +675,9 @@ ActiveRecord::Schema[7.0].define(version: 2024_02_05_160647) do
     t.string "tax_identification_number"
     t.integer "net_payment_term", default: 0, null: false
     t.string "default_currency", default: "USD", null: false
-    t.boolean "eu_tax_management", default: false
     t.integer "document_numbering", default: 0, null: false
     t.string "document_number_prefix"
+    t.boolean "eu_tax_management", default: false
     t.boolean "clickhouse_aggregation", default: false, null: false
     t.index ["api_key"], name: "index_organizations_on_api_key", unique: true
     t.check_constraint "invoice_grace_period >= 0", name: "check_organizations_on_invoice_grace_period"
@@ -777,7 +782,9 @@ ActiveRecord::Schema[7.0].define(version: 2024_02_05_160647) do
     t.uuid "group_id"
     t.uuid "organization_id", null: false
     t.jsonb "grouped_by", default: {}, null: false
+    t.uuid "charge_filter_id"
     t.index ["billable_metric_id"], name: "index_quantified_events_on_billable_metric_id"
+    t.index ["charge_filter_id"], name: "index_quantified_events_on_charge_filter_id"
     t.index ["deleted_at"], name: "index_quantified_events_on_deleted_at"
     t.index ["external_id"], name: "index_quantified_events_on_external_id"
     t.index ["group_id"], name: "index_quantified_events_on_group_id"
@@ -1057,4 +1064,6 @@ ActiveRecord::Schema[7.0].define(version: 2024_02_05_160647) do
        LEFT JOIN billable_metric_groups ON ((billable_metrics.id = billable_metric_groups.bm_id)))
     WHERE ((events.deleted_at IS NULL) AND (events.created_at >= (date_trunc('hour'::text, now()) - 'PT1H'::interval)) AND (events.created_at < date_trunc('hour'::text, now())) AND (billable_metrics.deleted_at IS NULL));
   SQL
+  add_index "last_hour_events_mv", ["organization_id"], name: "index_last_hour_events_mv_on_organization_id"
+
 end

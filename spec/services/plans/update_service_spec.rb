@@ -126,6 +126,84 @@ RSpec.describe Plans::UpdateService, type: :service do
       end
     end
 
+    context 'when plan amount is updated' do
+      let(:new_customer) { create(:customer, organization:) }
+      let(:subscription) { create(:subscription, plan:, customer: new_customer) }
+      let(:update_args) do
+        {
+          name: plan_name,
+          code: 'new_plan',
+          interval: 'monthly',
+          pay_in_advance: false,
+          amount_cents: 5,
+          amount_currency: 'EUR',
+        }
+      end
+
+      before { subscription }
+
+      it 'correctly updates plan' do
+        result = plans_service.call
+
+        updated_plan = result.plan
+        aggregate_failures do
+          expect(updated_plan.name).to eq('Updated plan name')
+          expect(updated_plan.amount_cents).to eq(5)
+        end
+      end
+
+      context 'when there are pending subscriptions which are not relevant after the amount cents decrease' do
+        let(:pending_plan) { create(:plan, organization:, amount_cents: 10) }
+        let(:pending_subscription) do
+          create(:subscription, plan: pending_plan, status: :pending, previous_subscription_id: subscription.id)
+        end
+
+        before { pending_subscription }
+
+        it 'correctly cancels pending subscriptions' do
+          result = plans_service.call
+
+          updated_plan = result.plan
+          aggregate_failures do
+            expect(updated_plan.name).to eq('Updated plan name')
+            expect(updated_plan.amount_cents).to eq(5)
+            expect(Subscription.find_by(id: pending_subscription.id).status).to eq('canceled')
+          end
+        end
+      end
+
+      context 'when there are pending subscriptions which are not relevant after the amount cents increase' do
+        let(:original_plan) { create(:plan, organization:, amount_cents: 150) }
+        let(:subscription) { create(:subscription, plan: original_plan, customer: new_customer) }
+        let(:pending_subscription) do
+          create(:subscription, plan:, status: :pending, previous_subscription_id: subscription.id)
+        end
+        let(:update_args) do
+          {
+            name: plan_name,
+            code: 'new_plan',
+            interval: 'monthly',
+            pay_in_advance: false,
+            amount_cents: 200,
+            amount_currency: 'EUR',
+          }
+        end
+
+        before { pending_subscription }
+
+        it 'correctly cancels pending subscriptions' do
+          result = plans_service.call
+
+          updated_plan = result.plan
+          aggregate_failures do
+            expect(updated_plan.name).to eq('Updated plan name')
+            expect(updated_plan.amount_cents).to eq(200)
+            expect(Subscription.find_by(id: pending_subscription.id).status).to eq('canceled')
+          end
+        end
+      end
+    end
+
     context 'when plan is not found' do
       let(:applied_tax) { nil }
       let(:plan) { nil }
@@ -430,6 +508,15 @@ RSpec.describe Plans::UpdateService, type: :service do
         )
       end
 
+      let(:billable_metric_filter) do
+        create(
+          :billable_metric_filter,
+          billable_metric: sum_billable_metric,
+          key: 'payment_method',
+          values: %w[card physical],
+        )
+      end
+
       let(:update_args) do
         {
           id: plan.id,
@@ -451,6 +538,13 @@ RSpec.describe Plans::UpdateService, type: :service do
                 {
                   group_id: group.id,
                   values: { amount: '100' },
+                },
+              ],
+              filters: [
+                {
+                  invoice_display_name: 'Card filter',
+                  properties: { amount: '90' },
+                  values: { billable_metric_filter.key => 'card' },
                 },
               ],
             },
@@ -485,6 +579,15 @@ RSpec.describe Plans::UpdateService, type: :service do
         expect(existing_charge.group_properties.first).to have_attributes(
           group_id: group.id,
           values: { 'amount' => '100' },
+        )
+
+        expect(existing_charge.filters.first).to have_attributes(
+          invoice_display_name: 'Card filter',
+          properties: { 'amount' => '90' },
+        )
+        expect(existing_charge.filters.first.values.first).to have_attributes(
+          billable_metric_filter_id: billable_metric_filter.id,
+          value: 'card',
         )
       end
 

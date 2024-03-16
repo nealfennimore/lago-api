@@ -11,9 +11,12 @@ module Plans
     def call
       return result.not_found_failure!(resource: 'plan') unless plan
 
+      old_amount_cents = plan.amount_cents
+
       plan.name = params[:name] if params.key?(:name)
       plan.invoice_display_name = params[:invoice_display_name] if params.key?(:invoice_display_name)
       plan.description = params[:description] if params.key?(:description)
+      plan.amount_cents = params[:amount_cents] if params.key?(:amount_cents)
 
       # NOTE: Only name and description are editable if plan
       #       is attached to subscriptions
@@ -21,7 +24,6 @@ module Plans
         plan.code = params[:code] if params.key?(:code)
         plan.interval = params[:interval].to_sym if params.key?(:interval)
         plan.pay_in_advance = params[:pay_in_advance] if params.key?(:pay_in_advance)
-        plan.amount_cents = params[:amount_cents] if params.key?(:amount_cents)
         plan.amount_currency = params[:amount_currency] if params.key?(:amount_currency)
         plan.trial_period = params[:trial_period] if params.key?(:trial_period)
         plan.bill_charges_monthly = bill_charges_monthly?
@@ -44,6 +46,10 @@ module Plans
 
         process_charges(plan, params[:charges]) if params[:charges]
         process_minimum_commitment(plan, params[:minimum_commitment]) if params[:minimum_commitment] && License.premium?
+        if old_amount_cents != plan.amount_cents
+          process_downgraded_subscriptions
+          process_pending_subscriptions
+        end
       end
 
       result.plan = plan.reload
@@ -80,6 +86,13 @@ module Plans
         charge_model: charge.charge_model,
         properties:,
       ).properties
+
+      if params[:filters].present?
+        ChargeFilters::CreateOrUpdateBatchService.call(
+          charge:,
+          filters_params: params[:filters].map(&:with_indifferent_access),
+        ).raise_if_error!
+      end
 
       if License.premium?
         charge.invoiceable = params[:invoiceable] unless params[:invoiceable].nil?
@@ -141,6 +154,14 @@ module Plans
             return group_result if group_result.error
           end
 
+          filters = payload_charge.delete(:filters)
+          unless filters.nil?
+            ChargeFilters::CreateOrUpdateBatchService.call(
+              charge:,
+              filters_params: filters.map(&:with_indifferent_access),
+            ).raise_if_error!
+          end
+
           properties = payload_charge.delete(:properties).presence || Charges::BuildDefaultPropertiesService.call(
             payload_charge[:charge_model],
           )
@@ -195,7 +216,30 @@ module Plans
       charge.discard!
       charge.group_properties.discard_all
 
+      charge.filter_values.discard_all
+      charge.filters.discard_all
+
       Invoice.where(id: draft_invoice_ids).update_all(ready_to_be_refreshed: true) # rubocop:disable Rails/SkipsModelValidations
+    end
+
+    # NOTE: We should remove pending subscriptions
+    #       if plan has been downgraded but amount cents became less than downgraded value. This pending subscription
+    #       is not relevant in this case and downgrade should be ignored
+    def process_downgraded_subscriptions
+      return unless plan.subscriptions.active.exists?
+
+      Subscription.where(previous_subscription: plan.subscriptions.active, status: :pending).find_each do |sub|
+        sub.mark_as_canceled! if plan.amount_cents < sub.plan.amount_cents
+      end
+    end
+
+    # NOTE: We should remove pending subscriptions
+    #       if plan has been downgraded but amount cents of pending plan became higher than original plan.
+    #       This pending subscription is not relevant in this case and downgrade should be ignored
+    def process_pending_subscriptions
+      Subscription.where(plan:, status: :pending).find_each do |sub|
+        sub.mark_as_canceled! if plan.amount_cents > sub.previous_subscription.plan.amount_cents
+      end
     end
   end
 end

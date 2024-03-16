@@ -196,6 +196,12 @@ module PaymentProviders
             metadata: event.data.object.metadata.to_h.symbolize_keys,
           )
       end
+    rescue BaseService::NotFoundFailure => e
+      # NOTE: Error with stripe sandbox should be ignord
+      raise if event.livemode
+
+      Rails.logger.warn("Stripe resource not found: #{e.message}. JSON: #{event_json}")
+      BaseService::Result.new # NOTE: Prevents error from being re-raised
     end
 
     private

@@ -16,7 +16,7 @@ gem 'sidekiq'
 
 # Security
 gem 'bcrypt'
-gem 'googleauth', require: false
+gem 'googleauth', '~> 1.11.0'
 gem 'jwt'
 gem 'oauth2'
 gem 'rack-cors'
@@ -113,4 +113,6 @@ group :development do
 
   gem 'sass-rails'
   gem 'uglifier'
+
+  gem 'ruby-lsp-rails', require: false
 end

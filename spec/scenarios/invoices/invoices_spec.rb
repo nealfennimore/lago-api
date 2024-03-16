@@ -5,8 +5,65 @@ require 'rails_helper'
 describe 'Invoices Scenarios', :scenarios, type: :request do
   let(:organization) { create(:organization, webhook_url: nil, email_settings: []) }
   let(:tax) { create(:tax, organization:, rate: 20) }
+  let(:pdf_generator) { instance_double(Utils::PdfGenerator) }
+  let(:pdf_file) { StringIO.new(File.read(Rails.root.join('spec/fixtures/blank.pdf'))) }
+  let(:pdf_result) { OpenStruct.new(io: pdf_file) }
 
-  before { tax }
+  before do
+    tax
+
+    allow(Utils::PdfGenerator).to receive(:new)
+      .and_return(pdf_generator)
+    allow(pdf_generator).to receive(:call)
+      .and_return(pdf_result)
+  end
+
+  context 'when pay in advance subscription with free trial used on several subscriptions' do
+    let(:organization) { create(:organization, webhook_url: nil) }
+    let(:tax) { create(:tax, organization:, rate: 0) }
+    let(:customer) { create(:customer, organization:) }
+    let(:plan) { create(:plan, organization:, amount_cents: 3500, pay_in_advance: true, trial_period: 7) }
+
+    it 'creates an invoice for the expected period' do
+      travel_to(DateTime.new(2024, 3, 4, 21)) do
+        create_subscription(
+          {
+            external_customer_id: customer.external_id,
+            external_id: customer.external_id,
+            plan_code: plan.code,
+          },
+        )
+      end
+
+      subscription = customer.subscriptions.first
+      invoice = subscription.invoices.first
+      expect(invoice.total_amount_cents).to eq(2371) # (31 - 3 - 7) * 35 / 31
+
+      travel_to(DateTime.new(2024, 3, 5, 3)) do
+        terminate_subscription(subscription)
+      end
+
+      term_invoice = subscription.invoices.order(created_at: :desc).first
+      expect(term_invoice.total_amount_cents).to eq(0)
+
+      expect(invoice.reload.credit_notes.count).to eq(1)
+      expect(invoice.credit_notes.first.total_amount_cents).to eq(2371)
+
+      travel_to(DateTime.new(2024, 3, 5, 4)) do
+        create_subscription(
+          {
+            external_customer_id: customer.external_id,
+            external_id: customer.external_id,
+            plan_code: plan.code,
+          },
+        )
+
+        subscription = customer.subscriptions.active.first
+        invoice = subscription.invoices.first
+        expect(invoice.fees_amount_cents).to eq(2371) # (31 - 4 - 6) * 35 / 31
+      end
+    end
+  end
 
   context 'when timezone is negative and not the same day as UTC' do
     let(:organization) { create(:organization, webhook_url: nil) }
@@ -526,6 +583,11 @@ describe 'Invoices Scenarios', :scenarios, type: :request do
         )
       end
 
+      travel_to(DateTime.new(2024, 2, 1)) do
+        Subscriptions::BillingService.call
+        perform_all_enqueued_jobs
+      end
+
       travel_to(DateTime.parse('2024-02-12 06:00:00')) do
         expect {
           create_subscription(
@@ -538,13 +600,14 @@ describe 'Invoices Scenarios', :scenarios, type: :request do
           )
           perform_all_enqueued_jobs
         }.to change { subscription.reload.status }.from('active').to('terminated')
-          .and change { customer.invoices.count }.from(1).to(2)
+          .and change { customer.invoices.count }.from(2).to(3)
 
         invoice = customer.subscriptions.active.first.invoices.order(created_at: :desc).first
         credit_note = customer.credit_notes.first
 
         expect(credit_note.credit_amount_cents).to eq(1_800)
-        expect(invoice.total_amount_cents).to eq(18_000 + 190 - 1_800) # 11/29 x 500 = 190
+        # NOTE: the charges from the termination day will be billed on the upgraded subscription
+        expect(invoice.total_amount_cents).to eq(18_000 + 172 - 1_800) # 10/29 x 500 = 172
       end
 
       travel_to(DateTime.new(2024, 3, 1, 12, 12)) do
@@ -611,6 +674,11 @@ describe 'Invoices Scenarios', :scenarios, type: :request do
         )
       end
 
+      travel_to(DateTime.new(2024, 2, 1)) do
+        Subscriptions::BillingService.call
+        perform_all_enqueued_jobs
+      end
+
       travel_to(DateTime.parse('2024-02-12 06:00:00')) do
         expect {
           create_subscription(
@@ -623,11 +691,12 @@ describe 'Invoices Scenarios', :scenarios, type: :request do
           )
           perform_all_enqueued_jobs
         }.to change { subscription.reload.status }.from('active').to('terminated')
-          .and change { customer.invoices.count }.from(0).to(1)
+          .and change { customer.invoices.count }.from(1).to(2)
 
         terminated_invoice = subscription.invoices.order(created_at: :desc).first
 
-        expect(terminated_invoice.total_amount_cents).to eq((1_100 + (11.fdiv(29) * 500)).round) # 11 + 11/29 x 5
+        # NOTE: the charges from the termination day will be billed on the upgraded subscription
+        expect(terminated_invoice.total_amount_cents).to eq((1_100 + (10.fdiv(29) * 500)).round) # 11 + 10/29 x 5
       end
 
       travel_to(DateTime.new(2024, 3, 1, 12, 12)) do
@@ -694,7 +763,53 @@ describe 'Invoices Scenarios', :scenarios, type: :request do
         )
       end
 
+      travel_to(DateTime.new(2024, 2, 1)) do
+        Subscriptions::BillingService.call
+        perform_all_enqueued_jobs
+      end
+
       travel_to(DateTime.parse('2024-02-12 06:00:00')) do
+        expect {
+          terminate_subscription(subscription)
+          perform_all_enqueued_jobs
+        }.to change { subscription.reload.status }.from('active').to('terminated')
+          .and change { customer.invoices.count }.from(2).to(3)
+
+        terminated_invoice = subscription.invoices.order(created_at: :desc).first
+        credit_note = customer.credit_notes.first
+
+        expect(credit_note.credit_amount_cents).to eq(1_700)
+        expect(terminated_invoice.total_amount_cents).to eq(0) # 12/29 x 500 = 207 - 207(CN)
+        expect(terminated_invoice.fees_amount_cents).to eq(207)
+        expect(terminated_invoice.credit_notes_amount_cents).to eq(207)
+      end
+    end
+  end
+
+  context 'when pay in advance subscription is terminated on the same day' do
+    let(:customer) { create(:customer, organization:) }
+    let(:plan) { create(:plan, organization:, amount_cents: 2_900, pay_in_advance: true) }
+    let(:tax) { create(:tax, organization:, rate: 0) }
+    let(:metric) do
+      create(:billable_metric, organization:, aggregation_type: 'sum_agg', recurring: true, field_name: 'amount')
+    end
+
+    it 'bills fees correctly' do
+      travel_to(DateTime.parse('2024-02-01 03:00:00')) do
+        create_subscription(
+          {
+            external_customer_id: customer.external_id,
+            external_id: customer.external_id,
+            plan_code: plan.code,
+            billing_time: 'calendar',
+          },
+        )
+      end
+
+      subscription = customer.subscriptions.first
+      first_invoice = subscription.invoices.first
+
+      travel_to(DateTime.parse('2024-02-01 18:00:00')) do
         expect {
           terminate_subscription(subscription)
           perform_all_enqueued_jobs
@@ -704,10 +819,276 @@ describe 'Invoices Scenarios', :scenarios, type: :request do
         terminated_invoice = subscription.invoices.order(created_at: :desc).first
         credit_note = customer.credit_notes.first
 
+        expect(first_invoice.credit_notes.count).to eq(1)
+        expect(credit_note.credit_amount_cents).to eq(2_800) # Only one day is billed
+        expect(terminated_invoice.total_amount_cents).to eq(0) # There are no charges
+      end
+    end
+  end
+
+  context 'when pay in advance subscription with grace period is terminated' do
+    let(:customer) { create(:customer, organization:, invoice_grace_period: 3) }
+    let(:plan) { create(:plan, organization:, amount_cents: 2_900, pay_in_advance: true) }
+    let(:tax) { create(:tax, organization:, rate: 0) }
+    let(:metric) do
+      create(:billable_metric, organization:, aggregation_type: 'sum_agg', recurring: true, field_name: 'amount')
+    end
+    let(:adjusted_fee_params) do
+      {
+        unit_amount_cents: 500,
+        units: 3,
+      }
+    end
+
+    around { |test| lago_premium!(&test) }
+
+    it 'bills fees correctly' do
+      travel_to(DateTime.new(2024, 1, 1)) do
+        create(
+          :standard_charge,
+          plan:,
+          billable_metric: metric,
+          pay_in_advance: false,
+          prorated: true,
+          properties: { amount: '1' },
+        )
+
+        create_subscription(
+          {
+            external_customer_id: customer.external_id,
+            external_id: customer.external_id,
+            plan_code: plan.code,
+            billing_time: 'calendar',
+          },
+        )
+      end
+
+      first_invoice = customer.invoices.draft.first
+      subscription = customer.subscriptions.first
+
+      finalize_invoice(first_invoice)
+
+      travel_to(DateTime.new(2024, 1, 2)) do
+        create_event(
+          {
+            code: metric.code,
+            transaction_id: SecureRandom.uuid,
+            external_customer_id: customer.external_id,
+            external_subscription_id: subscription.external_id,
+            properties: { amount: '5' },
+          },
+        )
+      end
+
+      travel_to(DateTime.new(2024, 2, 1)) do
+        Subscriptions::BillingService.call
+        perform_all_enqueued_jobs
+
+        finalize_invoice(subscription.invoices.order(created_at: :desc).first)
+      end
+
+      travel_to(DateTime.parse('2024-02-12 06:00:00')) do
+        expect {
+          terminate_subscription(subscription)
+          perform_all_enqueued_jobs
+        }.to change { subscription.reload.status }.from('active').to('terminated')
+          .and change { customer.invoices.count }.from(2).to(3)
+
+        terminated_invoice = subscription.invoices.order(created_at: :desc).first
+        credit_note = customer.credit_notes.first
+
+        # credit notes are not applied on draft invoice
         expect(credit_note.credit_amount_cents).to eq(1_700)
-        expect(terminated_invoice.total_amount_cents).to eq(0) # 12/29 x 500 = 207 - 207(CN)
+        expect(credit_note.balance_amount_cents).to eq(1_700)
+        expect(terminated_invoice.total_amount_cents).to eq(207) # 12/29 x 500 = 207
         expect(terminated_invoice.fees_amount_cents).to eq(207)
-        expect(terminated_invoice.credit_notes_amount_cents).to eq(207)
+        expect(terminated_invoice.credit_notes_amount_cents).to eq(0)
+
+        # In terminated invoice there is only one fee that is charge kind
+        fee = terminated_invoice.fees.charge_kind.first
+
+        AdjustedFees::CreateService.call(organization:, fee:, params: adjusted_fee_params)
+        credit_note = credit_note.reload
+        terminated_invoice = terminated_invoice.reload
+
+        expect(credit_note.credit_amount_cents).to eq(1_700)
+        expect(credit_note.balance_amount_cents).to eq(1_700)
+        expect(terminated_invoice.total_amount_cents).to eq(1_500)
+        expect(terminated_invoice.fees_amount_cents).to eq(1_500)
+        expect(terminated_invoice.credit_notes_amount_cents).to eq(0)
+
+        finalize_invoice(terminated_invoice)
+        credit_note = credit_note.reload
+        terminated_invoice = terminated_invoice.reload
+
+        # after finalizing draft invoice, credit notes got applied
+        expect(credit_note.credit_amount_cents).to eq(1_700)
+        expect(credit_note.balance_amount_cents).to eq(200)
+        expect(terminated_invoice.total_amount_cents).to eq(0) # 1500 - 1500(CN)
+        expect(terminated_invoice.fees_amount_cents).to eq(1_500)
+        expect(terminated_invoice.credit_notes_amount_cents).to eq(1_500)
+      end
+    end
+
+    context 'with updated fee with attached credit note' do
+      let(:adjusted_fee_params) do
+        {
+          unit_amount_cents: 50,
+          units: 18, # 50 x 18 = 900
+        }
+      end
+
+      it 'bills fees correctly' do
+        travel_to(DateTime.parse('2024-02-12 06:00:00')) do
+          create(
+            :standard_charge,
+            plan:,
+            billable_metric: metric,
+            pay_in_advance: false,
+            prorated: true,
+            properties: { amount: '1' },
+          )
+
+          create_subscription(
+            {
+              external_customer_id: customer.external_id,
+              external_id: customer.external_id,
+              plan_code: plan.code,
+              billing_time: 'calendar',
+            },
+          )
+        end
+
+        first_invoice = customer.invoices.draft.first
+
+        expect(customer.credit_notes.count).to eq(0)
+        expect(first_invoice.total_amount_cents).to eq(1_800)
+        expect(first_invoice.fees_amount_cents).to eq(1_800)
+
+        subscription = customer.subscriptions.first
+
+        travel_to(DateTime.parse('2024-02-12 21:00:00')) do
+          expect {
+            terminate_subscription(subscription)
+            perform_all_enqueued_jobs
+          }.to change { subscription.reload.status }.from('active').to('terminated')
+            .and change { customer.invoices.count }.from(1).to(2)
+
+          first_invoice = first_invoice.reload
+
+          expect(customer.credit_notes.count).to eq(1)
+          credit_note = customer.credit_notes.first
+
+          expect(credit_note.credit_amount_cents).to eq(1_700)
+          expect(credit_note.balance_amount_cents).to eq(1_700)
+          expect(first_invoice.total_amount_cents).to eq(1_800)
+          expect(first_invoice.fees_amount_cents).to eq(1_800)
+          expect(first_invoice.credit_notes_amount_cents).to eq(0)
+
+          # There is only one fee that is subscription kind
+          fee = first_invoice.fees.subscription_kind.first
+
+          AdjustedFees::CreateService.call(organization:, fee:, params: adjusted_fee_params)
+          credit_note = credit_note.reload
+          first_invoice = first_invoice.reload
+
+          expect(credit_note.credit_amount_cents).to eq(850)
+          expect(credit_note.balance_amount_cents).to eq(850)
+          expect(first_invoice.total_amount_cents).to eq(900)
+          expect(first_invoice.fees_amount_cents).to eq(900)
+          expect(first_invoice.credit_notes_amount_cents).to eq(0)
+
+          terminated_invoice = subscription.invoices.order(created_at: :desc).first
+          credit_note = customer.credit_notes.first
+
+          # credit notes are not applied on draft invoice
+          expect(credit_note.credit_amount_cents).to eq(850)
+          expect(credit_note.balance_amount_cents).to eq(850)
+          expect(terminated_invoice.total_amount_cents).to eq(0) # There are no charges in a period
+          expect(terminated_invoice.fees_amount_cents).to eq(0)
+          expect(terminated_invoice.credit_notes_amount_cents).to eq(0)
+        end
+      end
+    end
+
+    context 'with updated fee equal to zero' do
+      let(:adjusted_fee_params) do
+        {
+          unit_amount_cents: 0,
+          units: 1,
+        }
+      end
+
+      it 'bills fees correctly' do
+        travel_to(DateTime.parse('2024-02-12 06:00:00')) do
+          create(
+            :standard_charge,
+            plan:,
+            billable_metric: metric,
+            pay_in_advance: false,
+            prorated: true,
+            properties: { amount: '1' },
+          )
+
+          create_subscription(
+            {
+              external_customer_id: customer.external_id,
+              external_id: customer.external_id,
+              plan_code: plan.code,
+              billing_time: 'calendar',
+            },
+          )
+        end
+
+        first_invoice = customer.invoices.draft.first
+
+        expect(customer.credit_notes.count).to eq(0)
+        expect(first_invoice.total_amount_cents).to eq(1_800)
+        expect(first_invoice.fees_amount_cents).to eq(1_800)
+
+        subscription = customer.subscriptions.first
+
+        travel_to(DateTime.parse('2024-02-12 21:00:00')) do
+          expect {
+            terminate_subscription(subscription)
+            perform_all_enqueued_jobs
+          }.to change { subscription.reload.status }.from('active').to('terminated')
+            .and change { customer.invoices.count }.from(1).to(2)
+
+          first_invoice = first_invoice.reload
+
+          expect(customer.credit_notes.count).to eq(1)
+          credit_note = customer.credit_notes.first
+
+          expect(credit_note.credit_amount_cents).to eq(1_700)
+          expect(credit_note.balance_amount_cents).to eq(1_700)
+          expect(first_invoice.total_amount_cents).to eq(1_800)
+          expect(first_invoice.fees_amount_cents).to eq(1_800)
+          expect(first_invoice.credit_notes_amount_cents).to eq(0)
+
+          # There is only one fee that is subscription kind
+          fee = first_invoice.fees.subscription_kind.first
+
+          AdjustedFees::CreateService.call(organization:, fee:, params: adjusted_fee_params)
+          credit_note = credit_note.reload
+          first_invoice = first_invoice.reload
+
+          expect(credit_note.credit_amount_cents).to eq(0)
+          expect(credit_note.balance_amount_cents).to eq(0)
+          expect(first_invoice.total_amount_cents).to eq(0)
+          expect(first_invoice.fees_amount_cents).to eq(0)
+          expect(first_invoice.credit_notes_amount_cents).to eq(0)
+
+          terminated_invoice = subscription.invoices.order(created_at: :desc).first
+          credit_note = customer.credit_notes.first
+
+          # credit notes are not applied on draft invoice
+          expect(credit_note.credit_amount_cents).to eq(0)
+          expect(credit_note.balance_amount_cents).to eq(0)
+          expect(terminated_invoice.total_amount_cents).to eq(0) # There are no charges in a period
+          expect(terminated_invoice.fees_amount_cents).to eq(0)
+          expect(terminated_invoice.credit_notes_amount_cents).to eq(0)
+        end
       end
     end
   end
