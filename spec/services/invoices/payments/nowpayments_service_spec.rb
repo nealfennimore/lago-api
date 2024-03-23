@@ -13,7 +13,10 @@ RSpec.describe Invoices::Payments::NowpaymentsService, type: :service do
   # let(:payments_api) { Nowpayments::PaymentsApi.new(nowpayments_client, 70) }
   # let(:payment_links_api) { Nowpayments::PaymentLinksApi.new(nowpayments_client, 70) }
   let(:payment_links_response) { generate(:nowpayments_payment_links_response) }
-  # let(:checkout) { Nowpayments::Checkout.new(nowpayments_client, 70) }
+  let(:invoice_response) do
+    path = Rails.root.join('spec/fixtures/nowpayments/create_invoice_response.json')
+    JSON.parse(File.read(path))
+  end
   let(:payments_response) { generate(:nowpayments_payments_response) }
   let(:payment_methods_response) { generate(:nowpayments_payment_methods_response) }
   let(:code) { 'nowpayments_1' }
@@ -34,10 +37,13 @@ RSpec.describe Invoices::Payments::NowpaymentsService, type: :service do
       nowpayments_payment_provider
       nowpayments_customer
 
+      stub_request(:post, 'http://example.com/api/v1/example')
+        .to_return(body: invoice_response, status: 200)
+
       allow(Lago::Nowpayments::Client).to receive(:new)
         .and_return(nowpayments_client)
       allow(nowpayments_client).to receive(:create_invoice)
-        .and_return(checkout)
+        .and_return(invoice_response)
       # allow(checkout).to receive(:payments_api)
       #   .and_return(payments_api)
       # allow(payments_api).to receive(:payments)

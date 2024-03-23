@@ -8,7 +8,7 @@ module PaymentProviders
     validates :success_redirect_url, nowpayments_url: true, allow_nil: true, length: { maximum: 1024 }
 
     def environment
-      if Rails.env.production? && live_prefix.present?
+      if Rails.env.production?
         :live
       else
         :test

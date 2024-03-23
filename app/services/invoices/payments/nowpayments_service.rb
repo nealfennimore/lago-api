@@ -25,7 +25,7 @@ module Invoices
           return result
         end
 
-        increment_payment_attemppts
+        increment_payment_attempts
 
         res = create_nowpayments_payment
         return result unless res
@@ -139,7 +139,7 @@ module Invoices
 
       def create_nowpayments_payment
         # update_payment_method_id
-        client.create_payment_by_invoice(Lago::Nowpayments::Params.new(payment_params).to_h)
+        client.create_invoice(payload: Lago::Nowpayments::Params.new(payment_params).to_h)
       rescue Lago::Nowpayments::NowpaymentsError => e
         deliver_error_webhook(e)
         update_invoice_payment_status(payment_status: :failed, deliver_webhook: false)

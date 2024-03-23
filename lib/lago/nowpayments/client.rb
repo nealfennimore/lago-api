@@ -6,7 +6,7 @@ module Lago
   module Nowpayments
     class Client
       def create_invoice(payload:)
-        response = LagoHttpClient.new('https://api-sandbox.nowpayments.io/v1/invoice').post(
+        response = LagoHttpClient.new('https://api-sandbox.nowpayments.io/v1/invoice').post_with_response(
           payload,
           api_key_header,
         )
@@ -17,7 +17,7 @@ module Lago
       end
 
       def create_payment_by_invoice(payload:)
-        response = LagoHttpClient.new('https://api-sandbox.nowpayments.io/v1/invoice').post(
+        response = LagoHttpClient.new('https://api-sandbox.nowpayments.io/v1/invoice').post_with_response(
           payload,
           api_key_header,
         )

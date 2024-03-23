@@ -80,6 +80,17 @@ RSpec.describe PaymentProviders::NowpaymentsProvider, type: :model do
     end
   end
 
+  describe '#environment' do
+    it 'returns test' do
+      expect(provider.environment).to eq :test
+    end
+
+    it 'returns live' do
+      allow(Rails.env).to receive(:production?).and_return(true)
+      expect(provider.environment).to eq :live
+    end
+  end
+
   describe '#api_key' do
     let(:api_key) { SecureRandom.uuid }
 
@@ -87,26 +98,6 @@ RSpec.describe PaymentProviders::NowpaymentsProvider, type: :model do
 
     it 'returns the api key' do
       expect(provider.api_key).to eq api_key
-    end
-  end
-
-  describe '#merchant_account' do
-    let(:merchant_account) { 'TestECOM' }
-
-    before { provider.merchant_account = merchant_account }
-
-    it 'returns the merchant account' do
-      expect(provider.merchant_account).to eq merchant_account
-    end
-  end
-
-  describe '#live_prefix' do
-    let(:live_prefix) { Faker::Internet.domain_word }
-
-    before { provider.live_prefix = live_prefix }
-
-    it 'returns the live prefix' do
-      expect(provider.live_prefix).to eq live_prefix
     end
   end
 
