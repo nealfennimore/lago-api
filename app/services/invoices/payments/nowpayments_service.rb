@@ -39,8 +39,8 @@ module Invoices
           payment_provider_customer_id: nil, # customer.nowpayments_customer.id,
           amount_cents: invoice.total_amount_cents,
           amount_currency: invoice.currency.upcase,
-          provider_payment_id: res.response['payment_id'],
-          status: res.response['payment_status'],
+          provider_payment_id: res.response['id'],
+          status: 'waiting',
         )
         payment.save!
 

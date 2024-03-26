@@ -86,4 +86,30 @@ FactoryBot.define do
       },
     )
   end
+
+  sequence :nowpayments_invoice_response do
+    id = SecureRandom.uuid
+    OpenStruct.new(
+      status: 200,
+      response: {
+        'id' => id,
+        'token_id' => SecureRandom.uuid,
+        'order_id' => SecureRandom.uuid,
+        'order_description' => 'description',
+        'price_amount' => '10.00',
+        'price_currency' => 'USD',
+        'pay_currency' => nil,
+        'ipn_callback_url' => 'https://nowpayments.io',
+        'invoice_url' => "https://sandbox.nowpayments.io/payment/?iid=#{id}",
+        'success_url' => 'https://nowpayments.io',
+        'cancel_url' => 'https://nowpayments.io',
+        'partially_paid_url' => 'https://nowpayments.io',
+        'payout_currency' => nil,
+        'created_at' => '2024-03-23T01:37:56.549Z',
+        'updated_at' => '2024-03-23T01:37:56.549Z',
+        'is_fixed_rate' => true,
+        'is_fee_paid_by_user' => true,
+      },
+    )
+  end
 end
