@@ -252,6 +252,8 @@ module Customers
                          PaymentProviderCustomers::GocardlessCustomer
                        when 'adyen'
                          PaymentProviderCustomers::AdyenCustomer
+                       when 'nowpayments'
+                         PaymentProviderCustomers::NowpaymentsCustomer
       end
 
       create_result = PaymentProviderCustomers::CreateService.new(customer).create_or_update(

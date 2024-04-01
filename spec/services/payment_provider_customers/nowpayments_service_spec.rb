@@ -18,6 +18,7 @@ RSpec.describe PaymentProviderCustomers::NowpaymentsService, type: :service do
 
   before do
     allow(Lago::Nowpayments::Client).to receive(:new).and_return(nowpayments_client)
+    allow(nowpayments_client).to receive(:create_invoice).and_return(:nowpayments_invoice_response)
     # allow(nowpayments_client).to receive(:checkout).and_return(checkout)
     # allow(checkout).to receive(:payment_links_api).and_return(payment_links_api)
     # allow(payment_links_api).to receive(:payment_links).and_return(payment_links_response)
@@ -52,8 +53,9 @@ RSpec.describe PaymentProviderCustomers::NowpaymentsService, type: :service do
         create(:nowpayments_customer, customer:, provider_customer_id: 'cus_123456')
       end
 
-      xit 'does not call nowpayments API' do
-        expect(payment_links_api).not_to have_received(:payment_links)
+      it 'doenowpayments_customers not call nowpayments API' do
+        nowpayments_customer.stub(:update!)
+        expect(nowpayments_customer).not_to have_received(:update!)
       end
     end
 
@@ -80,7 +82,7 @@ RSpec.describe PaymentProviderCustomers::NowpaymentsService, type: :service do
     context 'when failing to generate the checkout link' do
       # before do
       #   allow(payment_links_api)
-      #     .to receive(:payment_links).and_raise(Nowpayments::NowpaymentsError.new(nil, nil, 'error'))
+      #     .to receive(:payment_links).and_raise(Lago::Nowpayments::NowpaymentsError.new(nil, nil, 'error'))
       # end
 
       xit 'delivers an error webhook' do

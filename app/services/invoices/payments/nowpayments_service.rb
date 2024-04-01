@@ -36,7 +36,7 @@ module Invoices
         payment = Payment.new(
           invoice:,
           payment_provider_id: nowpayments_payment_provider.id,
-          payment_provider_customer_id: nil, # customer.nowpayments_customer.id,
+          payment_provider_customer_id: customer.nowpayments_customer.id,
           amount_cents: invoice.total_amount_cents,
           amount_currency: invoice.currency.upcase,
           provider_payment_id: res.response['id'],
@@ -139,7 +139,9 @@ module Invoices
 
       def create_nowpayments_payment
         # update_payment_method_id
-        client.create_invoice(payload: Lago::Nowpayments::Params.new(payment_params).to_h)
+        client.create_invoice(
+          payload: Lago::Nowpayments::Params.new(payment_params).to_h,
+        )
       rescue Lago::Nowpayments::NowpaymentsError => e
         deliver_error_webhook(e)
         update_invoice_payment_status(payment_status: :failed, deliver_webhook: false)

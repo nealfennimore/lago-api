@@ -35,6 +35,7 @@ class Organization < ApplicationRecord
   has_many :stripe_payment_providers, class_name: 'PaymentProviders::StripeProvider'
   has_many :gocardless_payment_providers, class_name: 'PaymentProviders::GocardlessProvider'
   has_many :adyen_payment_providers, class_name: 'PaymentProviders::AdyenProvider'
+  has_many :nowpayments_payment_providers, class_name: 'PaymentProviders::NowpaymentsProvider'
 
   has_one_attached :logo
 

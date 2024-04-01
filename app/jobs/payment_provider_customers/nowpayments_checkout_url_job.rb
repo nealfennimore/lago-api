@@ -4,7 +4,7 @@ module PaymentProviderCustomers
   class NowpaymentsCheckoutUrlJob < ApplicationJob
     queue_as :providers
 
-    retry_on Nowpayments::NowpaymentsError, wait: :exponentially_longer, attempts: 6
+    retry_on Lago::Nowpayments::NowpaymentsError, wait: :exponentially_longer, attempts: 6
     retry_on ActiveJob::DeserializationError
 
     def perform(nowpayments_customer)

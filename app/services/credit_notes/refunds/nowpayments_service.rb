@@ -88,7 +88,7 @@ module CreditNotes
           Lago::Nowpayments::Params.new(nowpayments_refund_params).to_h,
           payment.provider_payment_id,
         )
-      rescue Nowpayments::NowpaymentsError => e
+      rescue Lago::Nowpayments::NowpaymentsError => e
         deliver_error_webhook(message: e.msg, code: e.code)
         update_credit_note_status(:failed)
 

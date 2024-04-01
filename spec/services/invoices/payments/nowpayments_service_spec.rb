@@ -65,13 +65,19 @@ RSpec.describe Invoices::Payments::NowpaymentsService, type: :service do
         expect(result.payment.id).to be_present
         expect(result.payment.invoice).to eq(invoice)
         expect(result.payment.payment_provider).to eq(nowpayments_payment_provider)
-        expect(result.payment.payment_provider_customer).to eq(nil)
+        expect(result.payment.payment_provider_customer).to eq(nowpayments_customer)
         expect(result.payment.amount_cents).to eq(invoice.total_amount_cents)
         expect(result.payment.amount_currency).to eq(invoice.currency)
         expect(result.payment.status).to eq('waiting')
       end
 
       # expect(payments_api).to have_received(:payments)
+    end
+
+    context 'generates payment url' do
+      it 'generates payment url' do
+        expect(nowpayments_service.generate_payment_url.payment_url).to eq("https://sandbox.nowpayments.io/payment/?iid=#{invoice&.id}")
+      end
     end
 
     context 'with no payment provider' do
@@ -213,12 +219,12 @@ RSpec.describe Invoices::Payments::NowpaymentsService, type: :service do
         subscription
 
         allow(payments_api).to receive(:payments)
-          .and_raise(Nowpayments::NowpaymentsError.new(nil, nil, 'error', 'code'))
+          .and_raise(Lago::Nowpayments::NowpaymentsError.new(nil, nil, 'error', 'code'))
       end
 
       xit 'delivers an error webhook' do
         expect { nowpayments_service.__send__(:create_nowpayments_payment) }
-          .to raise_error(Nowpayments::NowpaymentsError)
+          .to raise_error(Lago::Nowpayments::NowpaymentsError)
 
         expect(SendWebhookJob).to have_been_enqueued
           .with(

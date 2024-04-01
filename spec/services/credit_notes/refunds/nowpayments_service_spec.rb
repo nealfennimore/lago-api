@@ -91,12 +91,12 @@ RSpec.describe CreditNotes::Refunds::NowpaymentsService, type: :service do
     context 'with an error on nowpayments' do
       before do
         allow(modifications_api).to receive(:refund_captured_payment)
-          .and_raise(Nowpayments::NowpaymentsError.new(nil, nil, 'error'))
+          .and_raise(Lago::Nowpayments::NowpaymentsError.new(nil, nil, 'error'))
       end
 
       xit 'delivers an error webhook' do
         expect { nowpayments_service.create }
-          .to raise_error(Nowpayments::NowpaymentsError)
+          .to raise_error(Lago::Nowpayments::NowpaymentsError)
 
         expect(SendWebhookJob).to have_been_enqueued
           .with(
