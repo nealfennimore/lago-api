@@ -53,7 +53,7 @@ module PaymentProviders
         return result.service_failure!(code: 'webhook_error', message: 'Invalid signature')
       end
 
-      PaymentProviders::Nowpayments::HandleEventJob.perform_later(organization:, event_json: body.to_json)
+      PaymentProviders::Nowpayments::HandleEventJob.perform_later(organization:, event_json: body)
 
       result.event = body
       result
@@ -65,7 +65,7 @@ module PaymentProviders
       unless WEBHOOKS_EVENTS.include?(event['payment_status'])
         return result.service_failure!(
           code: 'webhook_error',
-          message: "Invalid nowpayments event code: #{event['eventCode']}",
+          message: "Invalid nowpayments payment status: #{event['payment_status']}",
         )
       end
 

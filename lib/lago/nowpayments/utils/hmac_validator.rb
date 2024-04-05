@@ -10,7 +10,7 @@ module Lago
         end
 
         def calculate_notification_hmac(payload, hmac_key)
-          data = sort_hash(payload).to_json
+          data = sort_hash(JSON.parse(payload)).to_json
           OpenSSL::HMAC.hexdigest(HMAC_ALGORITHM, hmac_key, data)
         end
 
