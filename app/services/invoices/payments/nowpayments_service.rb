@@ -28,7 +28,6 @@ module Invoices
         increment_payment_attempts
 
         res = create_nowpayments_payment
-        return result unless res
 
         nowpayments_success, _nowpayments_error = handle_nowpayments_response(res)
         return result unless nowpayments_success
@@ -45,7 +44,9 @@ module Invoices
         payment.save!
 
         invoice_payment_status = invoice_payment_status(payment.status)
-        update_invoice_payment_status(payment_status: invoice_payment_status)
+        update_invoice_payment_status(
+          payment_status: invoice_payment_status,
+        )
 
         result.payment = payment
         result
@@ -77,7 +78,11 @@ module Invoices
       def generate_payment_url
         return result unless should_process_payment?
 
-        result.payment_url = "https://sandbox.nowpayments.io/payment/?iid=#{invoice&.id}"
+        payment = Payment.find_by(invoice: invoice)
+
+        return result.not_found_failure!(resource: 'payment') if payment.blank?
+
+        result.payment_url = "https://sandbox.nowpayments.io/payment/?iid=#{payment.provider_payment_id}"
 
         result
       rescue Lago::Nowpayments::NowpaymentsError => e
@@ -117,7 +122,9 @@ module Invoices
       end
 
       def client
-        @client ||= Lago::Nowpayments::Client.new
+        @client ||= Lago::Nowpayments::Client.new(
+          api_key: nowpayments_payment_provider.api_key,
+        )
       end
 
       def success_redirect_url
@@ -150,9 +157,15 @@ module Invoices
 
       def payment_params
         {
-          iid: invoice.number,
-          # TODO: Need to define other values for this
-          pay_currency: 'btc',
+          price_amount: invoice.total_amount_cents,
+          price_currency: invoice.currency.downcase,
+          order_id: invoice.number,
+          ipn_callback_url: 'https://7bcb-173-71-87-100.ngrok-free.app/webhooks/nowpayments/18483c8c-97ac-414f-b89b-7c00c91107a5',
+          success_url: nil,
+          cancel_url: nil,
+          partially_paid_url: nil,
+          is_fixed_rate: true,
+          is_fee_paid_by_user: true,
         }
       end
 

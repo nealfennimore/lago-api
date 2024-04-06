@@ -60,7 +60,9 @@ module PaymentProviderCustomers
     end
 
     def client
-      @client || Lago::Nowpayments::Client.new
+      @client || Lago::Nowpayments::Client.new(
+        api_key: nowpayments_payment_provider.api_key,
+      )
     end
 
     def deliver_success_webhook

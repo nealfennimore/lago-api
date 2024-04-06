@@ -71,17 +71,18 @@ module PaymentProviders
 
       case event['payment_status']
       when 'finished'
-        provider_payment_id = event['payment_id']
+        provider_payment_id = event['invoice_id']
+        puts(provider_payment_id)
         service = Invoices::Payments::NowpaymentsService.new
         result = service.update_payment_status(provider_payment_id:, status: :succeeded)
         return result.raise_if_error! || result
       when 'refunded'
-        provider_refund_id = event['payment_id']
+        provider_refund_id = event['invoice_id']
         service = CreditNotes::Refunds::NowpaymentsService.new
         result = service.update_status(provider_refund_id:, status: :succeeded)
         return result.raise_if_error! || result
       when 'failed', 'expired'
-        provider_refund_id = event['payment_id']
+        provider_refund_id = event['invoice_id']
         service = Invoices::Payments::NowpaymentsService.new
         result = service.update_payment_status(provider_refund_id:, status: :failed)
         return result.raise_if_error! || result

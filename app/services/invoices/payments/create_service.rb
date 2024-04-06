@@ -17,6 +17,8 @@ module Invoices
           Invoices::Payments::GocardlessCreateJob.perform_later(invoice)
         when :adyen
           Invoices::Payments::AdyenCreateJob.perform_later(invoice)
+        when :nowpayments
+          Invoices::Payments::NowpaymentsCreateJob.perform_later(invoice)
         end
       end
 

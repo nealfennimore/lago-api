@@ -6,8 +6,8 @@ module Lago
       def handle_nowpayments_response(res)
         return [true, nil] if res.status < 400
 
-        code = res.response['code']
-        message = res.response['message']
+        code = res.status
+        message = res.message
 
         error = NowpaymentsError.new(nil, nil, message, code)
         deliver_error_webhook(error)
