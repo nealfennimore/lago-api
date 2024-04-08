@@ -43,9 +43,8 @@ module Invoices
         )
         payment.save!
 
-        invoice_payment_status = invoice_payment_status(payment.status)
         update_invoice_payment_status(
-          payment_status: invoice_payment_status,
+          payment_status: invoice_payment_status(payment.status),
         )
 
         result.payment = payment
@@ -65,10 +64,12 @@ module Invoices
         result.invoice = payment.invoice
         return result if payment.invoice.succeeded?
 
+        # NOTE: Had to add this to get working?
+        @invoice ||= payment.invoice
+
         payment.update!(status:)
 
-        invoice_payment_status = invoice_payment_status(status)
-        update_invoice_payment_status(payment_status: invoice_payment_status)
+        update_invoice_payment_status(payment_status: invoice_payment_status(status))
 
         result
       rescue BaseService::FailedResult => e
@@ -78,7 +79,7 @@ module Invoices
       def generate_payment_url
         return result unless should_process_payment?
 
-        payment = Payment.find_by(invoice: invoice)
+        payment = Payment.find_by(invoice:)
 
         return result.not_found_failure!(resource: 'payment') if payment.blank?
 
@@ -115,9 +116,6 @@ module Invoices
       def should_process_payment?
         return false if invoice.succeeded? || invoice.voided?
         return false if nowpayments_payment_provider.blank?
-
-        # Not customer in nowpayments
-        # customer&.nowpayments_customer&.provider_customer_id
         true
       end
 
@@ -134,15 +132,6 @@ module Invoices
       def nowpayments_payment_provider
         @nowpayments_payment_provider ||= payment_provider(customer)
       end
-
-      # def update_payment_method_id
-      #   result = client.checkout.payments_api.payment_methods(
-      #     Lago::Nowpayments::Params.new(payment_method_params).to_h,
-      #   ).response
-
-      #   payment_method_id = result['storedPaymentMethods']&.first&.dig('id')
-      #   customer.nowpayments_customer.update!(payment_method_id:) if payment_method_id
-      # end
 
       def create_nowpayments_payment
         # update_payment_method_id
@@ -168,30 +157,6 @@ module Invoices
           is_fee_paid_by_user: true,
         }
       end
-
-      # def payment_url_params
-      #   prms = {
-      #     reference: invoice.number,
-      #     amount: {
-      #       value: invoice.total_amount_cents,
-      #       currency: invoice.currency.upcase,
-      #     },
-      #     returnUrl: success_redirect_url,
-      #     shopperReference: customer.external_id,
-      #     storePaymentMethodMode: 'enabled',
-      #     recurringProcessingModel: 'UnscheduledCardOnFile',
-      #     expiresAt: Time.current + 1.day,
-      #     metadata: {
-      #       lago_customer_id: customer.id,
-      #       lago_invoice_id: invoice.id,
-      #       invoice_issuing_date: invoice.issuing_date.iso8601,
-      #       invoice_type: invoice.invoice_type,
-      #       payment_type: 'one-time',
-      #     },
-      #   }
-      #   prms[:shopperEmail] = customer.email if customer.email
-      #   prms
-      # end
 
       def invoice_payment_status(payment_status)
         return :pending if PENDING_STATUSES.include?(payment_status)
