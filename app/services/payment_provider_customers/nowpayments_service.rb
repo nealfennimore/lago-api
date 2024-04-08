@@ -62,6 +62,7 @@ module PaymentProviderCustomers
     def client
       @client || Lago::Nowpayments::Client.new(
         api_key: nowpayments_payment_provider.api_key,
+        api_site: nowpayments_payment_provider.api_site,
       )
     end
 

@@ -83,7 +83,7 @@ module Invoices
 
         return result.not_found_failure!(resource: 'payment') if payment.blank?
 
-        result.payment_url = "https://sandbox.nowpayments.io/payment/?iid=#{payment.provider_payment_id}"
+        result.payment_url = "#{nowpayments_payment_provider.auth_site}/payment/?iid=#{payment.provider_payment_id}"
 
         result
       rescue Lago::Nowpayments::NowpaymentsError => e
@@ -116,12 +116,14 @@ module Invoices
       def should_process_payment?
         return false if invoice.succeeded? || invoice.voided?
         return false if nowpayments_payment_provider.blank?
+
         true
       end
 
       def client
         @client ||= Lago::Nowpayments::Client.new(
           api_key: nowpayments_payment_provider.api_key,
+          api_site: nowpayments_payment_provider.api_site,
         )
       end
 
@@ -146,13 +148,13 @@ module Invoices
 
       def payment_params
         {
-          price_amount: invoice.total_amount_cents,
+          price_amount: invoice.total_amount.to_s,
           price_currency: invoice.currency.downcase,
           order_id: invoice.number,
-          ipn_callback_url: 'https://7bcb-173-71-87-100.ngrok-free.app/webhooks/nowpayments/18483c8c-97ac-414f-b89b-7c00c91107a5',
-          success_url: nil,
-          cancel_url: nil,
-          partially_paid_url: nil,
+          ipn_callback_url: nowpayments_payment_provider.ipn_callback_url,
+          success_url: nowpayments_payment_provider.success_redirect_url,
+          cancel_url: nowpayments_payment_provider.cancel_redirect_url,
+          partially_paid_url: nowpayments_payment_provider.partially_paid_redirect_url,
           is_fixed_rate: true,
           is_fee_paid_by_user: true,
         }

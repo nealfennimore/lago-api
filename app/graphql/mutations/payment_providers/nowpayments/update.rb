@@ -7,7 +7,7 @@ module Mutations
         graphql_name 'UpdateNowpaymentsPaymentProvider'
         description 'Update Nowpayments payment provider'
 
-        input_object_class Types::PaymentProviders::UpdateInput
+        input_object_class Types::PaymentProviders::NowpaymentsUpdateInput
 
         type Types::PaymentProviders::Nowpayments
       end

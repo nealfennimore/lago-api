@@ -23,12 +23,13 @@ module Lago
     end
 
     class Client
-      def initialize(api_key: nil)
+      def initialize(api_key: nil, api_site: nil)
         @api_key = api_key
+        @api_site = api_site
       end
 
       def create_invoice(payload:)
-        res = LagoHttpClient::Client.new('https://api-sandbox.nowpayments.io/v1/invoice').post_with_response(
+        res = LagoHttpClient::Client.new("#{api_site}/v1/invoice").post_with_response(
           payload,
           api_key_header,
         )
@@ -38,7 +39,7 @@ module Lago
       end
 
       def create_payment_by_invoice(payload:)
-        res = LagoHttpClient::Client.new('https://api-sandbox.nowpayments.io/v1/invoice').post_with_response(
+        res = LagoHttpClient::Client.new("#{api_site}/v1/invoice").post_with_response(
           payload,
           api_key_header,
         )
@@ -48,7 +49,7 @@ module Lago
       end
 
       def get_status(payment_id:)
-        res = LagoHttpClient::Client.new("https://api-sandbox.nowpayments.io/v1/payment#{payment_id}").get(
+        res = LagoHttpClient::Client.new("#{api_site}/v1/payment#{payment_id}").get(
           api_key_header,
         )
         handle_success(res)
@@ -57,6 +58,8 @@ module Lago
       end
 
       private
+
+      attr_reader :api_key, :api_site
 
       def handle_success(response)
         ClientResponse.new(

@@ -26,6 +26,11 @@ module PaymentProviders
       nowpayments_provider.name = args[:name] if args.key?(:name)
       nowpayments_provider.hmac_key = args[:hmac_key] if args.key?(:hmac_key)
       nowpayments_provider.success_redirect_url = args[:success_redirect_url] if args.key?(:success_redirect_url)
+      nowpayments_provider.ipn_callback_url = args[:ipn_callback_url] if args.key?(:ipn_callback_url)
+      nowpayments_provider.cancel_redirect_url = args[:cancel_redirect_url] if args.key?(:cancel_redirect_url)
+      if args.key?(:partially_paid_redirect_url)
+        nowpayments_provider.partially_paid_redirect_url = args[:partially_paid_redirect_url]
+      end
       nowpayments_provider.save!
 
       result.nowpayments_provider = nowpayments_provider
