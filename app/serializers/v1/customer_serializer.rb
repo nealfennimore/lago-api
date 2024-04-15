@@ -69,6 +69,9 @@ module V1
       when :adyen
         configuration[:provider_customer_id] = model.adyen_customer&.provider_customer_id
         configuration.merge!(model.adyen_customer&.settings || {})
+      when :nowpayments
+        configuration[:provider_customer_id] = model.nowpayments_customer&.provider_customer_id
+        configuration.merge!(model.nowpayments_customer&.settings || {})
       end
 
       configuration
