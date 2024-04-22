@@ -79,7 +79,7 @@ module Invoices
       def generate_payment_url
         return result unless should_process_payment?
 
-        payment = Payment.find_by(invoice:)
+        payment = Payment.find_by(invoice: invoice)
 
         return result.not_found_failure!(resource: 'payment') if payment.blank?
 
