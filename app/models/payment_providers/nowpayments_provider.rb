@@ -8,7 +8,7 @@ module PaymentProviders
     validates :success_redirect_url, nowpayments_url: true, allow_nil: true, length: { maximum: 1024 }
 
     def environment
-      if Rails.env.production?
+      if Rails.env.production? and ENV['NOWPAYMENTS_ENV'] != 'sandbox'
         :live
       else
         :test
@@ -16,7 +16,7 @@ module PaymentProviders
     end
 
     def api_site
-      if Rails.env.production?
+      if environment == :live
         'https://api.nowpayments.io'
       else
         'https://api-sandbox.nowpayments.io'
@@ -24,7 +24,7 @@ module PaymentProviders
     end
 
     def auth_site
-      if Rails.env.production?
+      if environment == :live
         'https://nowpayments.io'
       else
         'https://sandbox.nowpayments.io'
