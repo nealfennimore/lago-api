@@ -107,6 +107,8 @@ class Customer < ApplicationRecord
       gocardless_customer
     when :adyen
       adyen_customer
+    when :nowpayments
+      nowpayments_customer
     end
   end
 
